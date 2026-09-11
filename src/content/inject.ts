@@ -21,7 +21,7 @@ function showToast(message: string, ok: boolean) {
   el.setAttribute(
     "style",
     [
-      "position:fixed", "bottom:24px", "right:24px", "z-index:2147483647",
+      "position:fixed", "top:24px", "left:24px", "z-index:2147483647",
       "padding:10px 16px", "border-radius:8px", "font:13px/1.4 -apple-system,system-ui,sans-serif",
       "color:#fff", "box-shadow:0 4px 12px rgba(0,0,0,.25)",
       "max-width:320px", "word-break:break-word",
