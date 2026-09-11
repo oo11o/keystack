@@ -3,7 +3,7 @@
   "stacks": [
     {
       "id": "copy-id",
-      "name": "Copy ticket ID",
+      "name": "Copy Tender",
       "binding": { "code": "Digit1", "ctrl": true, "alt": true, "shift": false, "meta": false },
       "enabled": true,
       "steps": [
