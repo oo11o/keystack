@@ -7,7 +7,7 @@
       "binding": { "code": "Digit1", "ctrl": true, "alt": true, "shift": false, "meta": false },
       "enabled": true,
       "steps": [
-        { "id": "s1", "type": "copyBySelector", "selector": "#ticket-id" }
+        { "id": "s1", "type": "copyBySelector", "selector": "#tender_id" }
       ]
     }
   ]
