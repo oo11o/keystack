@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { runStack } from "../src/content/inject";
+import { runStack, StepError } from "../src/content/inject";
 import type { Stack } from "../src/core/schema";
 
 beforeEach(() => {
@@ -70,5 +70,31 @@ describe("runStack — $<step.id> auto-binding", () => {
 
     await runStack(producer);
     await expect(runStack(consumer)).rejects.toThrow('unknown variable "$s1"');
+  });
+
+  it("on failure, reports the notes from steps that already succeeded plus which step broke", async () => {
+    document.body.innerHTML = `<input id="tender_id" value="T-42" />`; // #search is missing
+    const stack: Stack = {
+      id: "sync",
+      name: "Sync",
+      binding: { code: "Digit2", ctrl: true, alt: true, shift: false, meta: false },
+      enabled: true,
+      steps: [
+        { id: "s1", type: "readBySelector", selector: "#tender_id" },
+        { id: "s2", type: "inputToSelector", selector: "#search", value: "$s1" }
+      ]
+    };
+
+    try {
+      await runStack(stack);
+      expect.unreachable("expected runStack to throw");
+    } catch (err) {
+      expect(err).toBeInstanceOf(StepError);
+      const stepErr = err as StepError;
+      expect(stepErr.notes).toEqual(['read "T-42"']); // step 1 succeeded
+      expect(stepErr.stepIndex).toBe(1); // step 2 (0-indexed) is the one that broke
+      expect(stepErr.step.type).toBe("inputToSelector");
+      expect(stepErr.message).toMatch(/No element for "#search"/);
+    }
   });
 });
