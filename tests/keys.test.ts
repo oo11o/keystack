@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { matches } from "../src/core/keys";
+import { matches, formatBinding } from "../src/core/keys";
 import type { Binding } from "../src/core/schema";
 
 const binding: Binding = { code: "Digit1", ctrl: true, alt: true, shift: false, meta: false };
@@ -30,5 +30,21 @@ describe("matches", () => {
 
   it("rejects a missing required modifier", () => {
     expect(matches(keydown({ altKey: false }), binding)).toBe(false);
+  });
+});
+
+describe("formatBinding", () => {
+  it("formats modifiers and a digit key", () => {
+    expect(formatBinding(binding)).toBe("Ctrl+Alt+1");
+  });
+
+  it("formats a letter key", () => {
+    expect(formatBinding({ code: "KeyA", ctrl: false, alt: true, shift: true, meta: false }))
+      .toBe("Alt+Shift+A");
+  });
+
+  it("passes through a non-alphanumeric code as-is", () => {
+    expect(formatBinding({ code: "F1", ctrl: true, alt: false, shift: false, meta: false }))
+      .toBe("Ctrl+F1");
   });
 });

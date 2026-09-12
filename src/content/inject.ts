@@ -1,5 +1,5 @@
 import type { Config, Stack } from "../core/schema";
-import { matches } from "../core/keys";
+import { matches, formatBinding } from "../core/keys";
 import { MAX_VARS, type RunContext } from "../core/context";
 import { handlers } from "./steps";
 
@@ -76,11 +76,14 @@ document.addEventListener(
     e.preventDefault();
     e.stopPropagation();
 
+    const chord = formatBinding(stack.binding);
+    console.log(`[Keystack] ${chord} → "${stack.name}" (${stack.id})`);
+
     try {
       const summary = await runStack(stack);
-      showToast(`✓ ${stack.name}: ${summary}`, true);
+      showToast(`✓ ${chord} → ${stack.name}: ${summary}`, true);
     } catch (err) {
-      showToast(`✗ ${stack.name}: ${(err as Error).message}`, false);
+      showToast(`✗ ${chord} → ${stack.name}: ${(err as Error).message}`, false);
     }
   },
   true
