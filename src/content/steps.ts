@@ -1,6 +1,7 @@
 import type { Step } from "../core/schema";
 import type { RunContext } from "../core/context";
 import { resolve } from "../core/context";
+import { showPopup } from "../ui/popup";
 
 // `value` present = this step is a producer and feeds $value/$saveAs.
 // `note` is what the toast reports; a pure side-effect step sets only this.
@@ -71,5 +72,14 @@ export const handlers: Record<Step["type"], Handler> = {
     const value = resolve(step.value, ctx);
     writeValue(el, value);
     return { note: `filled "${step.selector}"` };
+  },
+
+  async popup(step, ctx) {
+    if (step.type !== "popup") throw new Error("wrong handler");
+    // The title falls back to the running stack's name — as a template, not a
+    // special case: $stackName is just another builtin (see context.ts).
+    const title = resolve(step.title ?? "$stackName", ctx);
+    await showPopup(title, resolve(step.body, ctx)); // blocks until dismissed
+    return { note: `popup "${title}"` };
   }
 };

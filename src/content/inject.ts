@@ -1,7 +1,7 @@
 import type { Config, Settings, Stack, Step } from "../core/schema";
 import { DEFAULT_SETTINGS } from "../core/schema";
 import { matches, formatBinding } from "../core/keys";
-import { MAX_VARS, type RunContext } from "../core/context";
+import { BUILTINS, MAX_VARS, seedBuiltins, type RunContext } from "../core/context";
 import { handlers } from "./steps";
 import { showResultToast, type RunOutcome } from "../ui/toast";
 
@@ -44,9 +44,13 @@ export class StepError extends Error {
 
 // The context is created here and dies with this function — no global
 // store, so a value cannot leak between runs or between stacks.
+// `allStacks` is only there for the $stacks builtin (the cheatsheet popup
+// lists them); it defaults to this stack alone so callers that don't care
+// can ignore it.
 // Returns one note per step that reported something, in run order.
-export async function runStack(stack: Stack): Promise<string[]> {
+export async function runStack(stack: Stack, allStacks: Stack[] = [stack]): Promise<string[]> {
   const ctx: RunContext = new Map();
+  seedBuiltins(ctx, allStacks, stack); // before step 1, so every step can read them
   const notes: string[] = [];
   try {
     for (let i = 0; i < stack.steps.length; i++) {
@@ -56,7 +60,11 @@ export async function runStack(stack: Stack): Promise<string[]> {
         if (!handler) throw new Error(`Unknown step type "${step.type}"`);
         const { value, note } = await handler(step, ctx);
         if (value !== undefined) {
-          if (ctx.size >= MAX_VARS) throw new Error(`too many variables (max ${MAX_VARS})`);
+          // MAX_VARS caps what *steps* write; the seeded builtins are not
+          // charged against that budget.
+          if (ctx.size >= MAX_VARS + BUILTINS.length) {
+            throw new Error(`too many variables (max ${MAX_VARS})`);
+          }
           ctx.set("value", value);
           ctx.set(step.id, value); // every producer is reachable as $<its own id>, free of charge
           if ("saveAs" in step && step.saveAs) ctx.set(step.saveAs, value);
@@ -99,7 +107,7 @@ document.addEventListener(
 
     let outcome: RunOutcome;
     try {
-      const notes = await runStack(stack);
+      const notes = await runStack(stack, config.stacks);
       outcome = { ok: true, notes };
     } catch (err) {
       if (err instanceof StepError) {
@@ -108,6 +116,13 @@ document.addEventListener(
         outcome = { ok: false, notes: [], stepIndex: -1, stepType: "error", message: (err as Error).message };
       }
     }
+    // A popup step is already the visible confirmation of success — a toast
+    // on top of it would be redundant. Failure still needs the toast: the
+    // popup may never have been reached, or the error may be about the popup
+    // step itself (e.g. an unknown $var in its body).
+    const sawPopup = stack.steps.some((step) => step.type === "popup");
+    if (outcome.ok && sawPopup) return;
+
     showResultToast(chord, stack.name, outcome, settings.toast);
   },
   true
