@@ -1,7 +1,9 @@
-import type { Config, Stack, Step } from "../core/schema";
+import type { Config, Settings, Stack, Step } from "../core/schema";
+import { DEFAULT_SETTINGS } from "../core/schema";
 import { matches, formatBinding } from "../core/keys";
 import { MAX_VARS, type RunContext } from "../core/context";
 import { handlers } from "./steps";
+import { showResultToast, type RunOutcome } from "../ui/toast";
 
 function isTypingTarget(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;
@@ -16,112 +18,14 @@ async function loadConfig(): Promise<Config> {
   return res.json();
 }
 
-// A page's own CSS can otherwise leak into (or override) an injected element —
-// e.g. a site with `div { color: red !important }` would clobber a plain div
-// toast. Shadow DOM isolates the toast's styles from the page in both
-// directions. Created lazily and reused for the life of the page; the host
-// itself is still a light-DOM node, so it can't be made fully immune to a
-// page that resets *all* elements, but that's a much rarer case than
-// ordinary CSS leakage.
-//
-// Only the latest toast is ever shown — showToast() clears #container before
-// appending, so a new hotkey result always replaces whatever was there,
-// pinned or not.
-let toastContainer: HTMLElement | null = null;
-
-function getToastContainer(): HTMLElement {
-  if (toastContainer) return toastContainer;
-  const host = document.createElement("div");
-  host.id = "keystack-toast-host";
-  document.documentElement.appendChild(host);
-
-  const shadowRoot = host.attachShadow({ mode: "open" });
-  const style = document.createElement("style");
-  style.textContent = `
-    #container {
-      position: fixed;
-      top: 24px;
-      left: 24px;
-      z-index: 2147483647;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      pointer-events: none;
-    }
-    .toast {
-      pointer-events: auto;
-      padding: 10px 16px;
-      border-radius: 8px;
-      font: 13px/1.4 -apple-system, system-ui, sans-serif;
-      color: #fff;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, .25);
-      max-width: 320px;
-      word-break: break-word;
-      cursor: pointer;
-    }
-    .toast.ok { background: #1a7f37; }
-    .toast.err { background: #c62828; }
-    .toast.pinned { box-shadow: 0 0 0 2px rgba(255, 255, 255, .7), 0 4px 12px rgba(0, 0, 0, .25); }
-    .toast .chord {
-      display: block;
-      font-size: 16px;
-      font-weight: 700;
-      letter-spacing: .02em;
-    }
-    .toast .detail {
-      display: block;
-      font-size: 12px;
-      opacity: .85;
-      white-space: pre-line;
-    }
-  `;
-  shadowRoot.appendChild(style);
-
-  toastContainer = document.createElement("div");
-  toastContainer.id = "container";
-  shadowRoot.appendChild(toastContainer);
-  return toastContainer;
-}
-
-const TOAST_DURATION_MS = 3000;
-const SEPARATOR = "-----------------------";
-
-function numberList(items: string[]): string[] {
-  return items.map((item, i) => `${i + 1}. ${item}`);
-}
-
-// detail lines: [0] is the title (stack name + status), then a blank line,
-// then one line per step. white-space: pre-line on .detail renders the \n's.
-function showToast(chord: string, detailLines: string[], ok: boolean) {
-  const container = getToastContainer();
-  container.replaceChildren(); // only the latest toast is ever shown, pinned or not
-
-  const el = document.createElement("div");
-  el.className = `toast ${ok ? "ok" : "err"}`;
-
-  const chordEl = document.createElement("span");
-  chordEl.className = "chord";
-  chordEl.textContent = chord;
-
-  const detailEl = document.createElement("span");
-  detailEl.className = "detail";
-  detailEl.textContent = detailLines.join("\n");
-
-  el.append(chordEl, detailEl);
-  container.appendChild(el);
-
-  // Click once to pin (cancels auto-dismiss); click again to close it.
-  let pinned = false;
-  const timer = setTimeout(() => el.remove(), TOAST_DURATION_MS);
-  el.addEventListener("click", () => {
-    if (!pinned) {
-      pinned = true;
-      el.classList.add("pinned");
-      clearTimeout(timer);
-    } else {
-      el.remove();
-    }
-  });
+async function loadSettings(): Promise<Settings> {
+  try {
+    const url = chrome.runtime.getURL("config/settings.json");
+    const res = await fetch(url, { cache: "no-store" });
+    return { ...DEFAULT_SETTINGS, ...(await res.json()) };
+  } catch {
+    return DEFAULT_SETTINGS; // settings.json missing/unreachable — fall back quietly
+  }
 }
 
 // Thrown by runStack on failure so the caller can render the steps that
@@ -187,21 +91,24 @@ document.addEventListener(
     e.preventDefault();
     e.stopPropagation();
 
+    const settings = await loadSettings();
     const chord = formatBinding(stack.binding);
-    console.log(`[Keystack] ${chord} → "${stack.name}" (${stack.id})`);
+    if (settings.debug) {
+      console.log(`[Keystack] ${chord} → "${stack.name}" (${stack.id})`);
+    }
 
+    let outcome: RunOutcome;
     try {
       const notes = await runStack(stack);
-      showToast(chord, [`✓ ${stack.name}`, "", ...numberList(notes)], true);
+      outcome = { ok: true, notes };
     } catch (err) {
       if (err instanceof StepError) {
-        const lines = numberList(err.notes);
-        lines.push("", SEPARATOR, `${err.stepIndex + 1}. ✗ ${err.step.type}: ${err.message}`);
-        showToast(chord, [`✗ ${stack.name}`, "", ...lines], false);
+        outcome = { ok: false, notes: err.notes, stepIndex: err.stepIndex, stepType: err.step.type, message: err.message };
       } else {
-        showToast(chord, [`✗ ${stack.name}`, "", (err as Error).message], false);
+        outcome = { ok: false, notes: [], stepIndex: -1, stepType: "error", message: (err as Error).message };
       }
     }
+    showResultToast(chord, stack.name, outcome, settings.toast);
   },
   true
 );

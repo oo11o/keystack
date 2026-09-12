@@ -22,3 +22,12 @@ export type Stack = {
 };
 
 export type Config = { schemaVersion: 1; stacks: Stack[] };
+
+export type ToastVerbosity = "none" | "min" | "max";
+
+export type Settings = {
+  debug: boolean; // gates the "[Keystack] chord -> stack" console.log
+  toast: ToastVerbosity; // "none": no toast. "min": chord + name (+ reason on failure). "max": full step list
+};
+
+export const DEFAULT_SETTINGS: Settings = { debug: false, toast: "max" };
