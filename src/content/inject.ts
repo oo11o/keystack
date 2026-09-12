@@ -1,5 +1,6 @@
-import type { Config } from "../core/schema";
+import type { Config, Stack } from "../core/schema";
 import { matches } from "../core/keys";
+import { MAX_VARS, type RunContext } from "../core/context";
 import { handlers } from "./steps";
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -32,6 +33,30 @@ function showToast(message: string, ok: boolean) {
   setTimeout(() => el.remove(), 2000);
 }
 
+// The context is created here and dies with this function — no global
+// store, so a value cannot leak between runs or between stacks.
+export async function runStack(stack: Stack): Promise<string> {
+  const ctx: RunContext = new Map();
+  const notes: string[] = [];
+  try {
+    for (const step of stack.steps) {
+      const handler = handlers[step.type];
+      if (!handler) throw new Error(`Unknown step type "${step.type}"`);
+      const { value, note } = await handler(step, ctx);
+      if (value !== undefined) {
+        if (ctx.size >= MAX_VARS) throw new Error(`too many variables (max ${MAX_VARS})`);
+        ctx.set("value", value);
+        ctx.set(step.id, value); // every producer is reachable as $<its own id>, free of charge
+        if ("saveAs" in step && step.saveAs) ctx.set(step.saveAs, value);
+      }
+      if (note) notes.push(note);
+    }
+    return notes.join("; ");
+  } finally {
+    ctx.clear();
+  }
+}
+
 document.addEventListener(
   "keydown",
   async (e) => {
@@ -52,13 +77,8 @@ document.addEventListener(
     e.stopPropagation();
 
     try {
-      let lastResult = "";
-      for (const step of stack.steps) {
-        const handler = handlers[step.type];
-        if (!handler) throw new Error(`Unknown step type "${step.type}"`);
-        lastResult = await handler(step);
-      }
-      showToast(`✓ ${stack.name}: copied "${lastResult}"`, true);
+      const summary = await runStack(stack);
+      showToast(`✓ ${stack.name}: ${summary}`, true);
     } catch (err) {
       showToast(`✗ ${stack.name}: ${(err as Error).message}`, false);
     }

@@ -9,7 +9,9 @@ export type Binding = {
 };
 
 export type Step =
-  | { id: string; type: "copyBySelector"; selector: string }; // v0: only member
+  | { id: string; type: "copyBySelector"; selector: string }
+  | { id: string; type: "readBySelector"; selector: string; saveAs?: string }
+  | { id: string; type: "inputToSelector"; selector: string; value: string };
 
 export type Stack = {
   id: string;

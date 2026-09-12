@@ -9,6 +9,16 @@
       "steps": [
         { "id": "s1", "type": "copyBySelector", "selector": "#tender_id" }
       ]
+    },
+    {
+      "id": "sync",
+      "name": "Sync",
+      "binding": { "code": "Digit2", "ctrl": true, "alt": true, "shift": false, "meta": false },
+      "enabled": false,
+      "steps": [
+        { "id": "s1", "type": "readBySelector", "selector": "#tender_id" },
+        { "id": "s2", "type": "inputToSelector", "selector": "#search", "value": "$s1" }
+      ]
     }
   ]
 }
