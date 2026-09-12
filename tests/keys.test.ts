@@ -33,18 +33,34 @@ describe("matches", () => {
   });
 });
 
-describe("formatBinding", () => {
+describe("formatBinding — non-Mac", () => {
   it("formats modifiers and a digit key", () => {
-    expect(formatBinding(binding)).toBe("Ctrl+Alt+1");
+    expect(formatBinding(binding, false)).toBe("Ctrl+Alt+1");
   });
 
   it("formats a letter key", () => {
-    expect(formatBinding({ code: "KeyA", ctrl: false, alt: true, shift: true, meta: false }))
+    expect(formatBinding({ code: "KeyA", ctrl: false, alt: true, shift: true, meta: false }, false))
       .toBe("Alt+Shift+A");
   });
 
   it("passes through a non-alphanumeric code as-is", () => {
-    expect(formatBinding({ code: "F1", ctrl: true, alt: false, shift: false, meta: false }))
+    expect(formatBinding({ code: "F1", ctrl: true, alt: false, shift: false, meta: false }, false))
       .toBe("Ctrl+F1");
+  });
+});
+
+describe("formatBinding — Mac", () => {
+  it("renders each modifier as Word(symbol), joined by +", () => {
+    expect(formatBinding(binding, true)).toBe("Ctrl(⌃)+Opt(⌥)+1");
+  });
+
+  it("includes shift and cmd when set", () => {
+    expect(formatBinding({ code: "KeyA", ctrl: true, alt: true, shift: true, meta: true }, true))
+      .toBe("Ctrl(⌃)+Opt(⌥)+Shift(⇧)+Cmd(⌘)+A");
+  });
+
+  it("passes through a non-alphanumeric code as-is", () => {
+    expect(formatBinding({ code: "F1", ctrl: true, alt: false, shift: false, meta: false }, true))
+      .toBe("Ctrl(⌃)+F1");
   });
 });
