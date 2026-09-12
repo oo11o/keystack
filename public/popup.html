@@ -1,0 +1,73 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Keystack</title>
+    <style>
+      body {
+        margin: 0;
+        width: 320px;
+        max-height: 480px;
+        overflow-y: auto;
+        font: 13px/1.4 -apple-system, system-ui, sans-serif;
+        color: #1a1a1a;
+      }
+      h1 {
+        font-size: 13px;
+        font-weight: 600;
+        margin: 0;
+        padding: 10px 12px;
+        border-bottom: 1px solid #e5e5e5;
+      }
+      .stack {
+        padding: 8px 12px;
+        border-bottom: 1px solid #f0f0f0;
+      }
+      .stack.disabled {
+        opacity: 0.45;
+      }
+      .stack-header {
+        display: flex;
+        align-items: baseline;
+        gap: 6px;
+        margin-bottom: 4px;
+      }
+      .chord {
+        font-weight: 700;
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        white-space: nowrap;
+      }
+      .stack-name {
+        color: #333;
+      }
+      .badge {
+        margin-left: auto;
+        font-size: 11px;
+        color: #999;
+      }
+      ol.steps {
+        margin: 0;
+        padding-left: 18px;
+        color: #555;
+      }
+      ol.steps li {
+        margin: 2px 0;
+      }
+      code {
+        background: #f2f2f2;
+        border-radius: 3px;
+        padding: 0 3px;
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+      }
+      .empty {
+        padding: 16px 12px;
+        color: #999;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Keystack</h1>
+    <div id="list"></div>
+    <script src="popup.js"></script>
+  </body>
+</html>

@@ -4,6 +4,9 @@
   "version": "0.0.1",
   "description": "Hotkey macros for any site.",
   "permissions": ["clipboardWrite"],
+  "action": {
+    "default_popup": "popup.html"
+  },
   "content_scripts": [
     { "matches": ["<all_urls>"], "js": ["content.js"], "run_at": "document_idle" }
   ],
