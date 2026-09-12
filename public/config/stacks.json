@@ -14,7 +14,7 @@
       "id": "sync",
       "name": "Sync",
       "binding": { "code": "Digit2", "ctrl": true, "alt": true, "shift": false, "meta": false },
-      "enabled": false,
+      "enabled": true,
       "steps": [
         { "id": "s1", "type": "readBySelector", "selector": "#tender_id" },
         { "id": "s2", "type": "inputToSelector", "selector": "#search", "value": "$s1" }
