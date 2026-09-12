@@ -23,22 +23,33 @@ async function loadConfig(): Promise<Config> {
 // itself is still a light-DOM node, so it can't be made fully immune to a
 // page that resets *all* elements, but that's a much rarer case than
 // ordinary CSS leakage.
-let toastRoot: ShadowRoot | null = null;
+//
+// Only the latest toast is ever shown — showToast() clears #container before
+// appending, so a new hotkey result always replaces whatever was there,
+// pinned or not.
+let toastContainer: HTMLElement | null = null;
 
-function getToastRoot(): ShadowRoot {
-  if (toastRoot) return toastRoot;
+function getToastContainer(): HTMLElement {
+  if (toastContainer) return toastContainer;
   const host = document.createElement("div");
   host.id = "keystack-toast-host";
   document.documentElement.appendChild(host);
 
-  toastRoot = host.attachShadow({ mode: "open" });
+  const shadowRoot = host.attachShadow({ mode: "open" });
   const style = document.createElement("style");
   style.textContent = `
-    .toast {
+    #container {
       position: fixed;
       top: 24px;
       left: 24px;
       z-index: 2147483647;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    }
+    .toast {
+      pointer-events: auto;
       padding: 10px 16px;
       border-radius: 8px;
       font: 13px/1.4 -apple-system, system-ui, sans-serif;
@@ -64,16 +75,27 @@ function getToastRoot(): ShadowRoot {
       white-space: pre-line;
     }
   `;
-  toastRoot.appendChild(style);
-  return toastRoot;
+  shadowRoot.appendChild(style);
+
+  toastContainer = document.createElement("div");
+  toastContainer.id = "container";
+  shadowRoot.appendChild(toastContainer);
+  return toastContainer;
 }
 
 const TOAST_DURATION_MS = 3000;
 const SEPARATOR = "-----------------------";
 
+function numberList(items: string[]): string[] {
+  return items.map((item, i) => `${i + 1}. ${item}`);
+}
+
 // detail lines: [0] is the title (stack name + status), then a blank line,
 // then one line per step. white-space: pre-line on .detail renders the \n's.
 function showToast(chord: string, detailLines: string[], ok: boolean) {
+  const container = getToastContainer();
+  container.replaceChildren(); // only the latest toast is ever shown, pinned or not
+
   const el = document.createElement("div");
   el.className = `toast ${ok ? "ok" : "err"}`;
 
@@ -86,7 +108,7 @@ function showToast(chord: string, detailLines: string[], ok: boolean) {
   detailEl.textContent = detailLines.join("\n");
 
   el.append(chordEl, detailEl);
-  getToastRoot().appendChild(el);
+  container.appendChild(el);
 
   // Click once to pin (cancels auto-dismiss); click again to close it.
   let pinned = false;
@@ -170,11 +192,10 @@ document.addEventListener(
 
     try {
       const notes = await runStack(stack);
-      const lines = notes.map((note, i) => `${i + 1}. ${note}`);
-      showToast(chord, [`✓ ${stack.name}`, "", ...lines], true);
+      showToast(chord, [`✓ ${stack.name}`, "", ...numberList(notes)], true);
     } catch (err) {
       if (err instanceof StepError) {
-        const lines = err.notes.map((note, i) => `${i + 1}. ${note}`);
+        const lines = numberList(err.notes);
         lines.push("", SEPARATOR, `${err.stepIndex + 1}. ✗ ${err.step.type}: ${err.message}`);
         showToast(chord, [`✗ ${stack.name}`, "", ...lines], false);
       } else {
