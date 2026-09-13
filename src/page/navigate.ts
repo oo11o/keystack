@@ -1,10 +1,11 @@
-// Opening tabs. Touches `window`/`location`, so it lives in page/ rather
-// than core/ — same split as dom.ts and clipboard.ts.
+// URL handling shared by openUrl and fetchUrl. Touches `location`, so it
+// lives in page/ rather than core/ — same split as dom.ts and clipboard.ts.
 
 // Relative URLs resolve against the current page, so a stack can say
 // "/cron/sync.php?id=$s1" without hardcoding the host it runs on.
 // Only http/https are allowed: a stacks.json can be shared or imported, and
-// `javascript:` in window.open would run in the page's context.
+// `javascript:` in window.open (or a fetch target) would be a code-execution
+// footgun neither step is meant to offer.
 export function toHttpUrl(raw: string): string {
   let parsed: URL;
   try {
@@ -13,7 +14,7 @@ export function toHttpUrl(raw: string): string {
     throw new Error(`Invalid URL "${raw}"`);
   }
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    throw new Error(`openUrl supports only http/https URLs, got "${parsed.protocol}"`);
+    throw new Error(`only http/https URLs are supported, got "${parsed.protocol}"`);
   }
   return parsed.href;
 }
