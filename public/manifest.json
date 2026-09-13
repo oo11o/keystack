@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Keystack",
-  "version": "0.2.3",
+  "version": "0.4.0",
   "description": "Hotkey macros for any site.",
   "permissions": ["clipboardWrite", "storage"],
   "options_page": "options.html",
