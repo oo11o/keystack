@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { runStack, StepError } from "../src/content/inject";
+import { runStack, StepError } from "../src/content/runner";
 import type { Stack } from "../src/core/schema";
 
 beforeEach(() => {
