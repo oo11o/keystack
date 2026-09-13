@@ -21,8 +21,8 @@
       ]
     },
     {
-      "id": "sync-tender",
-      "name": "Sync Tender",
+      "id": "sync-tender-local",
+      "name": "Sync Tender (local)",
       "binding": { "code": "Digit3", "ctrl": true, "alt": true, "shift": false, "meta": false },
       "enabled": true,
       "steps": [
@@ -31,6 +31,34 @@
           "id": "s2",
           "type": "openUrl",
           "url": "http://dzo.lh/cron/directSinhro.php?tender_id=$s1&CDB_Number=0&run=$secret_runToken&type=tenders"
+        }
+      ]
+    },
+    {
+      "id": "sync-tender-test",
+      "name": "Sync Tender (test)",
+      "binding": { "code": "Digit4", "ctrl": true, "alt": true, "shift": false, "meta": false },
+      "enabled": true,
+      "steps": [
+        { "id": "s1", "type": "readBySelector", "selector": "#tender_id" },
+        {
+          "id": "s2",
+          "type": "openUrl",
+          "url": "https://test.dzo.com.ua/cron/directSinhro.php?tender_id=$s1&CDB_Number=0&run=$secret_runTokenTest&type=tenders"
+        }
+      ]
+    },
+    {
+      "id": "sync-tender-stage",
+      "name": "Sync Tender (stage)",
+      "binding": { "code": "Digit5", "ctrl": true, "alt": true, "shift": false, "meta": false },
+      "enabled": true,
+      "steps": [
+        { "id": "s1", "type": "readBySelector", "selector": "#tender_id" },
+        {
+          "id": "s2",
+          "type": "openUrl",
+          "url": "https://stage.dzo.com.ua/cron/directSinhro.php?tender_id=$s1&CDB_Number=0&run=$secret_runTokenStage&type=tenders"
         }
       ]
     },
