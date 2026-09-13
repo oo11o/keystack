@@ -5,11 +5,19 @@ export type RunContext = Map<string, string>;
 
 export const MAX_VARS = 64;
 
-export function resolve(template: string, ctx: RunContext): string {
+// `transform` is applied to each substituted value, never to the literal
+// text around it — openUrl passes encodeURIComponent so a value holding &
+// or = lands as one query parameter instead of injecting another, while the
+// &s the stack author typed in the template stay separators.
+export function resolve(
+  template: string,
+  ctx: RunContext,
+  transform: (value: string) => string = (v) => v
+): string {
   return template.replace(/\$\$|\$(\w+)/g, (match, name: string | undefined) => {
-    if (match === "$$") return "$";
+    if (match === "$$") return "$"; // literal escape, not a value — not transformed
     if (!ctx.has(name!)) throw new Error(`unknown variable "$${name}"`);
-    return ctx.get(name!)!;
+    return transform(ctx.get(name!)!);
   });
 }
 

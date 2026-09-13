@@ -12,7 +12,8 @@ export type Step =
   | { id: string; type: "copyBySelector"; selector: string }
   | { id: string; type: "readBySelector"; selector: string; saveAs?: string }
   | { id: string; type: "inputToSelector"; selector: string; value: string }
-  | { id: string; type: "popup"; title?: string; body: string };
+  | { id: string; type: "popup"; title?: string; body: string }
+  | { id: string; type: "openUrl"; url: string };
 
 export type Stack = {
   id: string;
