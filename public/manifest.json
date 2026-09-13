@@ -3,7 +3,8 @@
   "name": "Keystack",
   "version": "0.2.3",
   "description": "Hotkey macros for any site.",
-  "permissions": ["clipboardWrite"],
+  "permissions": ["clipboardWrite", "storage"],
+  "options_page": "options.html",
   "content_scripts": [
     { "matches": ["<all_urls>"], "js": ["content.js"], "run_at": "document_idle" }
   ],

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Keystack — Secrets</title>
+    <style>
+      body {
+        font: 14px/1.5 -apple-system, system-ui, sans-serif;
+        max-width: 640px;
+        margin: 40px auto;
+        padding: 0 24px;
+        color: #1a1a1a;
+      }
+      h1 { font-size: 20px; margin-bottom: 4px; }
+      .lede { color: #555; margin-top: 0; }
+      .warn {
+        background: #fff4e5;
+        border-left: 3px solid #e08600;
+        padding: 10px 14px;
+        border-radius: 4px;
+        color: #5c4200;
+      }
+      code { background: #f0f0f0; padding: 1px 5px; border-radius: 3px; }
+      .row { display: flex; gap: 8px; margin-bottom: 8px; }
+      .row input {
+        font: inherit;
+        padding: 6px 8px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+      }
+      .row .name { flex: 0 0 180px; font-family: ui-monospace, monospace; }
+      .row .value { flex: 1; font-family: ui-monospace, monospace; }
+      .row button { border: 1px solid #ccc; background: #fff; border-radius: 4px; cursor: pointer; }
+      .actions { margin-top: 16px; display: flex; gap: 8px; align-items: center; }
+      button.primary { background: #1a7f37; color: #fff; border: none; }
+      .actions button { font: inherit; padding: 7px 14px; border-radius: 4px; cursor: pointer; }
+      #status { color: #1a7f37; }
+      #status.error { color: #c62828; }
+    </style>
+  </head>
+  <body>
+    <h1>Secrets</h1>
+    <p class="lede">
+      Values a stack can reference as <code>$secret_&lt;name&gt;</code> — for example a
+      name of <code>runToken</code> is used as <code>$secret_runToken</code>.
+      They are masked in toasts, and they never touch <code>stacks.json</code>.
+    </p>
+
+    <p class="warn">
+      This is not encryption. An extension has no server, so these sit in plaintext on
+      this machine and anyone with devtools can read them. What it does buy: they stay
+      out of git, and — unlike <code>config/*.json</code> — no web page can fetch them.
+    </p>
+
+    <div id="rows"></div>
+
+    <div class="actions">
+      <button id="add">Add secret</button>
+      <button id="save" class="primary">Save</button>
+      <span id="status"></span>
+    </div>
+
+    <script src="options.js"></script>
+  </body>
+</html>

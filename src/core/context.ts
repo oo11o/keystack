@@ -22,6 +22,21 @@ export function resolve(
 }
 
 // Names of the built-in variables seeded by page/builtins.ts. Declared here
-// (not there) so content/runner.ts — which only needs the count for the
-// MAX_VARS budget — doesn't have to import anything DOM-touching.
+// (not there) so anything needing the list doesn't have to import something
+// DOM-touching.
 export const BUILTINS = ["url", "title", "selection", "stacks", "stackName"] as const;
+
+// Secrets are namespaced so a stack reads unambiguously: $secret_runToken is
+// visibly sensitive where a bare $runToken could be anything. The prefix is
+// for the reader only — masking matches on the values themselves, so a
+// secret is redacted wherever it surfaces (see core/redact.ts).
+export const SECRET_PREFIX = "secret_";
+
+// Seeded next to the builtins, before step 1. Values come from
+// chrome.storage.local (content/secrets.ts), never from the config JSON —
+// config/*.json is web-accessible to every page the extension runs on.
+export function seedSecrets(ctx: RunContext, secrets: Record<string, string>): void {
+  for (const [name, value] of Object.entries(secrets)) {
+    ctx.set(SECRET_PREFIX + name, value);
+  }
+}
