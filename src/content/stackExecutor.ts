@@ -4,6 +4,8 @@ import { formatBinding } from "../core/keys";
 import { runStack, StepError } from "./runner";
 import { logDebug } from "./debugLog";
 import { present } from "./presenter";
+import { loadSecrets } from "./secrets";
+import { makeRedactor } from "../core/redact";
 import type { RunOutcome } from "../ui/toast";
 
 async function loadSettings(): Promise<Settings> {
@@ -18,9 +20,13 @@ async function loadSettings(): Promise<Settings> {
 
 // Runs a stack and maps the result (or thrown StepError) to a RunOutcome.
 // Pure with respect to presentation: no logging, no toast.
-async function resolveOutcome(stack: Stack, allStacks: Stack[]): Promise<RunOutcome> {
+async function resolveOutcome(
+  stack: Stack,
+  allStacks: Stack[],
+  secrets: Record<string, string>
+): Promise<RunOutcome> {
   try {
-    const notes = await runStack(stack, allStacks);
+    const notes = await runStack(stack, allStacks, secrets);
     return { ok: true, notes };
   } catch (err) {
     if (err instanceof StepError) {
@@ -40,10 +46,10 @@ async function resolveOutcome(stack: Stack, allStacks: Stack[]): Promise<RunOutc
 // presenting the outcome (toast) — unless a popup step already showed the
 // confirmation.
 export async function executeStack(stack: Stack, allStacks: Stack[]): Promise<void> {
-  const settings = await loadSettings();
+  const [settings, secrets] = await Promise.all([loadSettings(), loadSecrets()]);
   const chord = formatBinding(stack.binding);
   logDebug(chord, stack, settings.debug);
 
-  const outcome = await resolveOutcome(stack, allStacks);
-  present(chord, stack, outcome, settings);
+  const outcome = await resolveOutcome(stack, allStacks, secrets);
+  present(chord, stack, outcome, settings, makeRedactor(secrets));
 }

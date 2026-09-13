@@ -1,5 +1,5 @@
 import type { Stack, Step } from "../core/schema";
-import { BUILTINS, MAX_VARS, type RunContext } from "../core/context";
+import { MAX_VARS, seedSecrets, type RunContext } from "../core/context";
 import { seedBuiltins } from "../page/builtins";
 import { handlers } from "../steps";
 
@@ -23,9 +23,16 @@ export class StepError extends Error {
 // lists them); it defaults to this stack alone so callers that don't care
 // can ignore it.
 // Returns one note per step that reported something, in run order.
-export async function runStack(stack: Stack, allStacks: Stack[] = [stack]): Promise<string[]> {
+export async function runStack(
+  stack: Stack,
+  allStacks: Stack[] = [stack],
+  secrets: Record<string, string> = {}
+): Promise<string[]> {
   const ctx: RunContext = new Map();
-  seedBuiltins(ctx, allStacks, stack); // before step 1, so every step can read them
+  // Before step 1, so every step can read them.
+  seedBuiltins(ctx, allStacks, stack);
+  seedSecrets(ctx, secrets);
+  const seeded = ctx.size; // builtins + secrets are not charged to the step budget
   const notes: string[] = [];
   try {
     for (let i = 0; i < stack.steps.length; i++) {
@@ -35,9 +42,9 @@ export async function runStack(stack: Stack, allStacks: Stack[] = [stack]): Prom
         if (!handler) throw new Error(`Unknown step type "${step.type}"`);
         const { value, note } = await handler(step, ctx);
         if (value !== undefined) {
-          // MAX_VARS caps what *steps* write; the seeded builtins are not
-          // charged against that budget.
-          if (ctx.size >= MAX_VARS + BUILTINS.length) {
+          // MAX_VARS caps what *steps* write; seeded values are not charged
+          // against that budget.
+          if (ctx.size >= MAX_VARS + seeded) {
             throw new Error(`too many variables (max ${MAX_VARS})`);
           }
           ctx.set("value", value);
