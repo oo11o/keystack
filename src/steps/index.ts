@@ -5,11 +5,13 @@ import { readBySelector } from "./readBySelector";
 import { inputToSelector } from "./inputToSelector";
 import { popup } from "./popup";
 import { openUrl } from "./openUrl";
+import { fetchUrl } from "./fetchUrl";
 
 export const handlers: Record<Step["type"], Handler> = {
   copyBySelector,
   readBySelector,
   inputToSelector,
   popup,
-  openUrl
+  openUrl,
+  fetchUrl
 };

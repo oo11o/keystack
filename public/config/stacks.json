@@ -44,7 +44,7 @@
         {
           "id": "s2",
           "type": "openUrl",
-          "url": "https://test.dzo.com.ua/cron/directSinhro.php?tender_id=$s1&CDB_Number=0&run=$secret_runTokenTest&type=tenders"
+          "url": "https://test.dzo.com.ua/cron/directSinhro.php?tender_id=$s1&CDB_Number=0&run=$secret_runToken&type=tenders"
         }
       ]
     },
@@ -58,8 +58,40 @@
         {
           "id": "s2",
           "type": "openUrl",
-          "url": "https://stage.dzo.com.ua/cron/directSinhro.php?tender_id=$s1&CDB_Number=0&run=$secret_runTokenStage&type=tenders"
+          "url": "https://stage.dzo.com.ua/cron/directSinhro.php?tender_id=$s1&CDB_Number=0&run=$secret_runToken&type=tenders"
         }
+      ]
+    },
+    {
+      "id": "sync-tender-local-fetch",
+      "name": "Sync Tender (local, fetch)",
+      "binding": { "code": "Digit6", "ctrl": true, "alt": true, "shift": false, "meta": false },
+      "enabled": true,
+      "steps": [
+        { "id": "s1", "type": "readBySelector", "selector": "#tender_id" },
+        {
+          "id": "s2",
+          "type": "fetchUrl",
+          "url": "http://dzo.lh/cron/directSinhro.php?tender_id=$s1&CDB_Number=0&run=$secret_runToken&type=tenders",
+          "saveAs": "syncResult"
+        },
+        { "id": "s3", "type": "popup", "title": "Sync result", "body": "$syncResult" }
+      ]
+    },
+    {
+      "id": "show-prozorro-tender",
+      "name": "Show Prozorro Tender",
+      "binding": { "code": "Digit7", "ctrl": true, "alt": true, "shift": false, "meta": false },
+      "enabled": true,
+      "steps": [
+        { "id": "s1", "type": "readBySelector", "selector": "#tender_id" },
+        {
+          "id": "s2",
+          "type": "fetchUrl",
+          "url": "https://public-api-staging.prozorro.gov.ua/api/2.5/tenders/$s1?opt_pretty=1",
+          "saveAs": "tender"
+        },
+        { "id": "s3", "type": "popup", "title": "Prozorro Tender", "body": "$tender" }
       ]
     },
     {
