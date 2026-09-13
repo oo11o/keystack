@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { runStack, StepError } from "../src/content/inject";
+import { runStack, StepError } from "../src/content/runner";
 import type { Stack } from "../src/core/schema";
 
 beforeEach(() => {
@@ -96,5 +96,85 @@ describe("runStack — $<step.id> auto-binding", () => {
       expect(stepErr.step.type).toBe("inputToSelector");
       expect(stepErr.message).toMatch(/No element for "#search"/);
     }
+  });
+});
+
+describe("runStack — the popup step", () => {
+  function getPopup() {
+    const host = document.getElementById("keystack-popup-host");
+    return host?.shadowRoot?.querySelector(".panel") ?? null;
+  }
+
+  function pressEscape() {
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  }
+
+  it("shows a value read by an earlier step, and blocks until dismissed", async () => {
+    document.body.innerHTML = `<input id="tender_id" value="T-42" />`;
+    const stack: Stack = {
+      id: "show",
+      name: "Show",
+      binding: { code: "Digit6", ctrl: true, alt: true, shift: false, meta: false },
+      enabled: true,
+      steps: [
+        { id: "s1", type: "readBySelector", selector: "#tender_id" },
+        { id: "s2", type: "popup", body: "ID: $s1" }
+      ]
+    };
+
+    let finished = false;
+    const run = runStack(stack).then((notes) => {
+      finished = true;
+      return notes;
+    });
+    await Promise.resolve(); // let the two steps run up to the popup
+
+    expect(getPopup()!.querySelector(".body")!.textContent).toBe("ID: T-42");
+    expect(getPopup()!.querySelector(".title")!.textContent).toBe("Show"); // $stackName fallback
+    expect(finished).toBe(false); // the run is parked on the popup
+
+    pressEscape();
+    expect(await run).toEqual(['read "T-42"', 'popup "Show"']);
+  });
+
+  it("lists the other stacks via $stacks", async () => {
+    const hotkeys: Stack = {
+      id: "hotkeys",
+      name: "Hotkeys",
+      binding: { code: "Digit0", ctrl: true, alt: true, shift: false, meta: false },
+      enabled: true,
+      steps: [{ id: "s1", type: "popup", title: "Keystack hotkeys", body: "$stacks" }]
+    };
+    const other: Stack = {
+      id: "copy",
+      name: "Copy Tender",
+      binding: { code: "Digit1", ctrl: true, alt: true, shift: false, meta: false },
+      enabled: true,
+      steps: []
+    };
+
+    const run = runStack(hotkeys, [other, hotkeys]);
+    await Promise.resolve();
+
+    const text = getPopup()!.querySelector(".body")!.textContent!;
+    expect(text.split("\n")).toHaveLength(2);
+    expect(text).toContain("Copy Tender");
+    expect(text).toContain("Hotkeys");
+
+    pressEscape();
+    await run;
+  });
+
+  it("an unknown $var in the body fails as a normal step error", async () => {
+    const stack: Stack = {
+      id: "bad",
+      name: "Bad",
+      binding: { code: "Digit7", ctrl: true, alt: true, shift: false, meta: false },
+      enabled: true,
+      steps: [{ id: "s1", type: "popup", body: "$typo" }]
+    };
+
+    await expect(runStack(stack)).rejects.toThrow('unknown variable "$typo"');
+    expect(getPopup()).toBeNull(); // nothing was shown
   });
 });

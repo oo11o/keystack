@@ -19,6 +19,15 @@
         { "id": "s1", "type": "readBySelector", "selector": "#tender_id" },
         { "id": "s2", "type": "inputToSelector", "selector": "#search", "value": "$s1" }
       ]
+    },
+    {
+      "id": "hotkeys",
+      "name": "Hotkeys",
+      "binding": { "code": "Digit0", "ctrl": true, "alt": true, "shift": false, "meta": false },
+      "enabled": true,
+      "steps": [
+        { "id": "s1", "type": "popup", "title": "Keystack hotkeys", "body": "$stacks" }
+      ]
     }
   ]
 }
