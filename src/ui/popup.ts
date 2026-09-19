@@ -8,6 +8,15 @@
 // lives for as long as the popup is open, so close() is the single place that
 // tears everything down and it must be safe to call twice.
 
+import { filterLines, FILTER_MIN } from "../core/filterLines";
+
+function line(className: string, text: string): HTMLElement {
+  const el = document.createElement("div");
+  el.className = className;
+  el.textContent = text;
+  return el;
+}
+
 let popupHost: HTMLElement | null = null;
 let popupRoot: ShadowRoot | null = null;
 
@@ -46,6 +55,11 @@ function getPopupRoot(): ShadowRoot {
       font: 13px/1.5 -apple-system, system-ui, sans-serif;
       outline: none;
     }
+    /* A filtered panel is sized once, on open, and never again: the box must
+       not twitch as you type. Width is pinned here (content-sized width would
+       shrink as long lines are filtered out); height is pinned in JS, from
+       the body's measured height, because only layout knows it. */
+    .panel.filtered { width: min(760px, 92vw); }
     .head {
       flex: none;
       display: flex;
@@ -72,6 +86,38 @@ function getPopupRoot(): ShadowRoot {
       padding: 2px 6px;
     }
     .close:hover { opacity: 1; }
+    .filter {
+      flex: none;
+      width: 200px;
+      padding: 5px 9px;
+      border: 1px solid rgba(255, 255, 255, .18);
+      border-radius: 6px;
+      background: rgba(255, 255, 255, .06);
+      color: inherit;
+      font: inherit;
+      outline: none;
+    }
+    .filter:focus { border-color: rgba(255, 255, 255, .45); }
+    .filter::placeholder { color: rgba(255, 255, 255, .4); }
+    /* The path names where a hit came from — it is not part of the payload,
+       so it recedes. The rule between hits recedes further still. */
+    .id, .path {
+      color: rgba(255, 255, 255, .42);
+      margin-top: 18px;
+    }
+    /* The ids and the path are one header block: the full gap goes above the
+       first of them. The ids stack tight together, and the path gets a small
+       gap of its own so it reads as a separate fact from the ids above it. */
+    .id + .id { margin-top: 0; }
+    .id + .path { margin-top: 8px; }
+    .id:first-child, .path:first-child { margin-top: 0; }
+    /* A drawn rule, not text — 24 dashes is a fixed width regardless of the
+       panel, while border-top always spans the body's full width. */
+    .sep {
+      border-top: 1px solid rgba(255, 255, 255, .18);
+      margin-top: 18px;
+      height: 0;
+    }
     .body {
       flex: 1 1 auto;
       overflow-y: auto;
@@ -95,10 +141,17 @@ function getPopupRoot(): ShadowRoot {
   return popupRoot;
 }
 
+export type PopupOptions = {
+  // Adds a search box to the head that filters the body line by line as you
+  // type. A view over `body` only — clearing the box always restores the
+  // full text, and nothing the step produced is affected.
+  filter?: boolean;
+};
+
 // Resolves when the popup is closed — by ESC, by a click on the backdrop, or
 // by the × button. Awaiting it is what makes a popup step a checkpoint in a
 // stack: the steps after it run once you dismiss it.
-export function showPopup(title: string, body: string): Promise<void> {
+export function showPopup(title: string, body: string, opts: PopupOptions = {}): Promise<void> {
   closeCurrent?.();
 
   const root = getPopupRoot();
@@ -107,7 +160,7 @@ export function showPopup(title: string, body: string): Promise<void> {
   backdrop.className = "backdrop";
 
   const panel = document.createElement("div");
-  panel.className = "panel";
+  panel.className = opts.filter ? "panel filtered" : "panel";
   panel.tabIndex = -1; // focusable, so ↑/↓/PgDn scroll the body
 
   const head = document.createElement("div");
@@ -119,7 +172,15 @@ export function showPopup(title: string, body: string): Promise<void> {
   closeBtn.className = "close";
   closeBtn.textContent = "×";
   closeBtn.setAttribute("aria-label", "Close");
-  head.append(titleEl, closeBtn);
+  const filterEl = opts.filter ? document.createElement("input") : null;
+  if (filterEl) {
+    filterEl.className = "filter";
+    filterEl.type = "text";
+    filterEl.placeholder = `filter (${FILTER_MIN}+ chars)`;
+    filterEl.setAttribute("aria-label", "Filter lines");
+  }
+
+  head.append(titleEl, ...(filterEl ? [filterEl] : []), closeBtn);
 
   const bodyEl = document.createElement("div");
   bodyEl.className = "body";
@@ -129,12 +190,52 @@ export function showPopup(title: string, body: string): Promise<void> {
   foot.className = "foot";
   foot.textContent = "esc to close";
 
+  if (filterEl) {
+    // Built as elements rather than one text node so the path can be dimmed
+    // apart from the payload it heads.
+    const render = () => {
+      const { text, groups, shown, total, active } = filterLines(body, filterEl.value);
+      bodyEl.textContent = "";
+      if (!active) {
+        bodyEl.textContent = text;
+      } else {
+        for (const [i, group] of groups.entries()) {
+          if (i > 0) bodyEl.append(line("sep", "")); // drawn by CSS as a full-width rule
+          // Starred in the text itself, not with ::before: the marker is
+          // part of what the header says, and it survives being copied.
+          for (const id of group.ids) bodyEl.append(line("id", `* ${id}`));
+          if (group.path) bodyEl.append(line("path", `* ${group.path}`));
+          bodyEl.append(line("hit", group.body));
+        }
+      }
+      // The count only earns its place once filtering is on; below the
+      // threshold it would just restate the body's own length.
+      foot.textContent = active ? `${shown} of ${total} lines · esc to close` : "esc to close";
+    };
+    filterEl.addEventListener("input", render);
+  }
+
   panel.append(head, bodyEl, foot);
   backdrop.appendChild(panel);
   root.appendChild(backdrop);
 
+  // Measured after the panel is in the document, so this is the height the
+  // full body actually settled at (already clamped by the panel's 80vh).
+  // Freezing it here is what stops the box from resizing on every keystroke.
+  // Guarded: a zero measurement means no layout (jsdom), and pinning 0 would
+  // collapse the body.
+  if (filterEl) {
+    const settled = bodyEl.getBoundingClientRect().height;
+    if (settled > 0) {
+      bodyEl.style.height = `${settled}px`;
+      bodyEl.style.flex = "none";
+    }
+  }
+
   const previouslyFocused = document.activeElement as HTMLElement | null;
-  panel.focus();
+  // With a filter, typing is the point — focus the box, not the panel. The
+  // cost is that ↑/↓ no longer scroll the body while it has focus.
+  (filterEl ?? panel).focus();
 
   return new Promise<void>((resolve) => {
     let closed = false;

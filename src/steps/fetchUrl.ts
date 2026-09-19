@@ -1,5 +1,6 @@
 import type { Handler } from "./types";
 import { resolve } from "../core/context";
+import { prettyJson } from "../core/json";
 import { toHttpUrl } from "../page/navigate";
 import { fetchInBackground } from "../background/client";
 import { showSpinner } from "../ui/spinner";
@@ -9,19 +10,6 @@ import { showSpinner } from "../ui/spinner";
 // time before the first result is even known. One fetchUrl at a time across
 // the whole page, regardless of which stack or chord it came from.
 let inFlight = false;
-
-// Some endpoints return JSON with non-ASCII text escaped as \uXXXX — valid
-// JSON, but unreadable as raw text (a Cyrillic message shows up as literal
-// backslash-u sequences). Parsing and re-stringifying decodes those escapes
-// back into real characters; JSON.stringify does not re-escape them. A
-// non-JSON body (plain text, HTML) fails to parse and is returned as-is.
-function displayBody(body: string): string {
-  try {
-    return JSON.stringify(JSON.parse(body), null, 2);
-  } catch {
-    return body;
-  }
-}
 
 export const fetchUrl: Handler = async (step, ctx) => {
   if (step.type !== "fetchUrl") throw new Error("wrong handler");
@@ -37,7 +25,7 @@ export const fetchUrl: Handler = async (step, ctx) => {
   inFlight = true;
   try {
     const { ok, status, body } = await fetchInBackground(url);
-    const text = displayBody(body);
+    const text = prettyJson(body);
     // Truncated: an error page's body can be arbitrarily long, and this text
     // ends up in a StepError message shown on a toast.
     if (!ok) throw new Error(`fetchUrl ${status}: ${text.slice(0, 200)}`);
