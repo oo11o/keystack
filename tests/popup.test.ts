@@ -11,6 +11,15 @@ function getBackdrop(): HTMLElement | null {
   return host?.shadowRoot?.querySelector(".backdrop") ?? null;
 }
 
+function getFilter(): HTMLInputElement | null {
+  return getPanel()?.querySelector(".filter") ?? null;
+}
+
+function type(input: HTMLInputElement, value: string): void {
+  input.value = value;
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
 function pressEscape(): void {
   document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
 }
@@ -79,5 +88,88 @@ describe("showPopup", () => {
     expect(getPanel()!.querySelector(".title")!.textContent).toBe("Second");
     pressEscape();
     await second;
+  });
+});
+
+describe("showPopup with { filter: true }", () => {
+  const BODY = ['{', '  "status": "active",', '  "title": "Tender",', '}'].join("\n");
+
+  it("adds no filter box unless the option is set", async () => {
+    const closed = showPopup("T", BODY);
+    expect(getFilter()).toBeNull();
+    expect(getPanel()!.querySelector(".foot")!.textContent).toBe("esc to close");
+    pressEscape();
+    await closed;
+  });
+
+  it("focuses the filter box so you can type immediately", async () => {
+    const closed = showPopup("T", BODY, { filter: true });
+    const filter = getFilter()!;
+    expect(filter).not.toBeNull();
+    expect(getPanel()!.getRootNode() as ShadowRoot).toHaveProperty("activeElement", filter);
+    pressEscape();
+    await closed;
+  });
+
+  it("leaves the body whole at two characters, and narrows at three", async () => {
+    const closed = showPopup("T", BODY, { filter: true });
+    const filter = getFilter()!;
+    const body = () => getPanel()!.querySelector(".body")!.textContent;
+    const foot = () => getPanel()!.querySelector(".foot")!.textContent;
+
+    type(filter, "st");
+    expect(body()).toBe(BODY);
+    expect(foot()).toBe("esc to close"); // no count while filtering is off
+
+    type(filter, "sta");
+    // Rendered as elements, so the path can be dimmed apart from the payload.
+    const panel = getPanel()!;
+    expect(panel.querySelector(".path")!.textContent).toBe("* status");
+    expect(panel.querySelector(".hit")!.textContent).toBe('"status": "active",');
+    expect(foot()).toBe("1 of 4 lines · esc to close");
+
+    pressEscape();
+    await closed;
+  });
+
+  it("puts a separator between hits, but not before the first", async () => {
+    // Two matches with an unmatched line between them, so they are two hits.
+    const gapped = ['{', '  "alpha": 1,', '  "middle": 2,', '  "alpha2": 3', '}'].join("\n");
+    const closed = showPopup("T", gapped, { filter: true });
+    type(getFilter()!, "alpha");
+    const panel = getPanel()!;
+    expect(panel.querySelectorAll(".hit").length).toBe(2);
+    expect(panel.querySelectorAll(".sep").length).toBe(1);
+    expect(panel.querySelector(".body")!.firstElementChild!.className).toBe("path");
+    pressEscape();
+    await closed;
+  });
+
+  it("restores the full body when the filter is cleared", async () => {
+    const closed = showPopup("T", BODY, { filter: true });
+    const filter = getFilter()!;
+    type(filter, "status");
+    expect(getPanel()!.querySelector(".body")!.textContent).not.toBe(BODY);
+    type(filter, "");
+    expect(getPanel()!.querySelector(".body")!.textContent).toBe(BODY);
+    pressEscape();
+    await closed;
+  });
+
+  it("shows an empty body rather than an error when nothing matches", async () => {
+    const closed = showPopup("T", BODY, { filter: true });
+    type(getFilter()!, "no-such-field");
+    expect(getPanel()!.querySelector(".body")!.textContent).toBe("");
+    expect(getPanel()!.querySelector(".foot")!.textContent).toBe("0 of 4 lines · esc to close");
+    pressEscape();
+    await closed;
+  });
+
+  it("still closes on ESC while the filter box has focus", async () => {
+    const closed = showPopup("T", BODY, { filter: true });
+    type(getFilter()!, "status");
+    pressEscape();
+    await closed;
+    expect(getPanel()).toBeNull();
   });
 });

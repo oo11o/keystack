@@ -91,7 +91,7 @@
           "url": "https://public-api-staging.prozorro.gov.ua/api/2.5/tenders/$s1?opt_pretty=1",
           "saveAs": "tender"
         },
-        { "id": "s3", "type": "popup", "title": "Prozorro Tender", "body": "$tender" }
+        { "id": "s3", "type": "popupJson", "title": "Prozorro Tender", "body": "$tender" }
       ]
     },
     {
