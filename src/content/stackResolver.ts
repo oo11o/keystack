@@ -8,7 +8,9 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || el.isContentEditable;
 }
 
-async function loadConfig(): Promise<Config> {
+// Exported for the resume path, which needs the same config but is not
+// driven by a keystroke (content/resumePending.ts).
+export async function loadConfig(): Promise<Config> {
   const url = chrome.runtime.getURL("config/stacks.json");
   const res = await fetch(url, { cache: "no-store" });
   return res.json();

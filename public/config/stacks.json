@@ -29,7 +29,7 @@
         { "id": "s1", "type": "readBySelector", "selector": "#tender_id" },
         {
           "id": "s2",
-          "type": "openUrl",
+          "type": "openUrlInNewTab",
           "url": "http://dzo.lh/cron/directSinhro.php?tender_id=$s1&CDB_Number=0&run=$secret_runToken&type=tenders"
         }
       ]
@@ -43,7 +43,7 @@
         { "id": "s1", "type": "readBySelector", "selector": "#tender_id" },
         {
           "id": "s2",
-          "type": "openUrl",
+          "type": "openUrlInNewTab",
           "url": "https://test.dzo.com.ua/cron/directSinhro.php?tender_id=$s1&CDB_Number=0&run=$secret_runToken&type=tenders"
         }
       ]
@@ -57,7 +57,7 @@
         { "id": "s1", "type": "readBySelector", "selector": "#tender_id" },
         {
           "id": "s2",
-          "type": "openUrl",
+          "type": "openUrlInNewTab",
           "url": "https://stage.dzo.com.ua/cron/directSinhro.php?tender_id=$s1&CDB_Number=0&run=$secret_runToken&type=tenders"
         }
       ]
@@ -92,6 +92,22 @@
           "saveAs": "tender"
         },
         { "id": "s3", "type": "popupJson", "title": "Prozorro Tender", "body": "$tender" }
+      ]
+    },
+    {
+      "id": "logout",
+      "name": "Logout",
+      "binding": { "code": "Digit8", "ctrl": true, "alt": true, "shift": false, "meta": false },
+      "enabled": true,
+      "steps": [
+        { "id": "s1", "type": "openUrlInCurrentTab", "url": "http://dzo.lh/cabinet/logout" },
+        { "id": "s2", "type": "openUrlInCurrentTab", "url": "http://dzo.lh/tenders/new" },
+        {
+          "id": "s3",
+          "type": "inputToSelector",
+          "selector": "[name=\"email\"]",
+          "value": "buyer_test@dzo.com.ua"
+        }
       ]
     },
     {

@@ -6,7 +6,7 @@ export type RunContext = Map<string, string>;
 export const MAX_VARS = 64;
 
 // `transform` is applied to each substituted value, never to the literal
-// text around it — openUrl passes encodeURIComponent so a value holding &
+// text around it — the URL steps pass encodeURIComponent so a value holding &
 // or = lands as one query parameter instead of injecting another, while the
 // &s the stack author typed in the template stay separators.
 export function resolve(
