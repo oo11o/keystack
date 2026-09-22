@@ -1,17 +1,25 @@
-import { resolveStack } from "./stackResolver";
+import { resolveStack, isConfigError } from "./stackResolver";
 import { executeStack } from "./stackExecutor";
 import { resumePending } from "./resumePending";
+import { showConfigErrorToast } from "../ui/toast";
 
 document.addEventListener(
   "keydown",
   async (e) => {
-    const route = await resolveStack(e);
-    if (!route) return;
+    const result = await resolveStack(e);
+    if (!result) return;
+
+    if (isConfigError(result)) {
+      // Deliberately no preventDefault: without a config we cannot know this
+      // chord was ever ours, so the page keeps its keystroke. We only report.
+      showConfigErrorToast(result.configError);
+      return;
+    }
 
     e.preventDefault();
     e.stopPropagation();
 
-    await executeStack(route.stack, route.allStacks);
+    await executeStack(result.stack, result.allStacks);
   },
   true
 );
