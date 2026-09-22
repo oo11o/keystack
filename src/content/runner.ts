@@ -60,12 +60,42 @@ export async function runStack(
   for (const [name, value] of resume?.vars ?? []) ctx.set(name, value);
 
   const notes: string[] = [...(resume?.notes ?? [])];
+
+  // Parks everything after step `index` for the next page in this tab to
+  // claim. Shared by the two ways a stack can leave the page: a step that
+  // returns navigateTo, and a step declared `navigates` in the config.
+  // Nothing to park if the departing step was the last one.
+  async function parkRest(index: number): Promise<void> {
+    const next = index + 1;
+    if (next >= stack.steps.length) return;
+    const redact = makeRedactor(secrets);
+    await saveResume({
+      stackId: stack.id,
+      nextStep: next,
+      // vars are live data — a later step interpolates them, so they cross
+      // unmasked. notes are display data and nothing reads them back, so
+      // they cross masked: a suspended stack must not park a token in
+      // storage just to caption a toast later. The presenter would have
+      // masked them on screen anyway, so the resumed toast reads the same.
+      vars: [...written].map((name) => [name, ctx.get(name)!]),
+      notes: notes.map(redact),
+      expiresAt: Date.now() + RESUME_TTL_MS
+    });
+  }
+
   try {
     for (let i = resume?.nextStep ?? 0; i < stack.steps.length; i++) {
       const step = stack.steps[i];
       try {
         const handler = handlers[step.type];
         if (!handler) throw new Error(`Unknown step type "${step.type}"`);
+        // A click on a submit button starts navigating as soon as the current
+        // task yields, so there is no safe moment *after* the handler to save
+        // anything — the record has to exist before the step runs at all.
+        // This reads a field, not a step type: the loop still does not know
+        // which steps exist, the same way it does not for `saveAs` below.
+        const willNavigate = "navigates" in step && step.navigates === true;
+        if (willNavigate) await parkRest(i);
         const { value, note, navigateTo } = await handler(step, ctx);
         if (value !== undefined) {
           // MAX_VARS caps what *steps* write; seeded values are not charged
@@ -79,29 +109,13 @@ export async function runStack(
         }
         if (note) notes.push(note);
         if (navigateTo) {
-          // Park the rest of the stack *before* the page starts unloading;
-          // once location.assign runs there is no guarantee another await
-          // ever resolves. Nothing to park if this was the last step.
-          const next = i + 1;
-          if (next < stack.steps.length) {
-            const redact = makeRedactor(secrets);
-            await saveResume({
-              stackId: stack.id,
-              nextStep: next,
-              // vars are live data — a later step interpolates them, so they
-              // cross unmasked. notes are display data and nothing reads
-              // them back, so they cross masked: a suspended stack must not
-              // park a token in storage just to caption a toast later. The
-              // presenter would have masked them on screen anyway, so the
-              // resumed toast reads exactly the same.
-              vars: [...written].map((name) => [name, ctx.get(name)!]),
-              notes: notes.map(redact),
-              expiresAt: Date.now() + RESUME_TTL_MS
-            });
-          }
+          // Park before the page starts unloading; once location.assign runs
+          // there is no guarantee another await ever resolves.
+          await parkRest(i);
           navigateHere(navigateTo);
           break; // this document is on its way out
         }
+        if (willNavigate) break; // this document may be on its way out
       } catch (err) {
         throw new StepError((err as Error).message, [...notes], i, step);
       }

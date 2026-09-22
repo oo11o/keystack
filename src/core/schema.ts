@@ -12,6 +12,10 @@ export type Step =
   | { id: string; type: "copyBySelector"; selector: string }
   | { id: string; type: "readBySelector"; selector: string; saveAs?: string }
   | { id: string; type: "inputToSelector"; selector: string; value: string }
+  // `navigates`: this click is expected to take the page somewhere (a submit
+  // button, a link). The runner parks the rest of the stack before firing it —
+  // see runner.ts. Leave it off for a click that stays on the page.
+  | { id: string; type: "clickBySelector"; selector: string; navigates?: boolean }
   | { id: string; type: "popup"; title?: string; body: string }
   | { id: string; type: "popupJson"; title?: string; body: string }
   | { id: string; type: "openUrlInNewTab"; url: string }
