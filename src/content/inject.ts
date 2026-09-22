@@ -1,5 +1,6 @@
 import { resolveStack } from "./stackResolver";
 import { executeStack } from "./stackExecutor";
+import { resumePending } from "./resumePending";
 
 document.addEventListener(
   "keydown",
@@ -14,3 +15,7 @@ document.addEventListener(
   },
   true
 );
+
+// Not awaited: a stack this page is continuing must not delay the keydown
+// listener above being registered.
+void resumePending();

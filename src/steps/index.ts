@@ -5,7 +5,8 @@ import { readBySelector } from "./readBySelector";
 import { inputToSelector } from "./inputToSelector";
 import { popup } from "./popup";
 import { popupJson } from "./popupJson";
-import { openUrl } from "./openUrl";
+import { openUrlInNewTab } from "./openUrlInNewTab";
+import { openUrlInCurrentTab } from "./openUrlInCurrentTab";
 import { fetchUrl } from "./fetchUrl";
 
 export const handlers: Record<Step["type"], Handler> = {
@@ -14,6 +15,7 @@ export const handlers: Record<Step["type"], Handler> = {
   inputToSelector,
   popup,
   popupJson,
-  openUrl,
+  openUrlInNewTab,
+  openUrlInCurrentTab,
   fetchUrl
 };

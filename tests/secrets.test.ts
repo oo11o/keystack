@@ -15,7 +15,7 @@ function syncStack(url: string): Stack {
     enabled: true,
     steps: [
       { id: "s1", type: "readBySelector", selector: "#tender_id" },
-      { id: "s2", type: "openUrl", url }
+      { id: "s2", type: "openUrlInNewTab", url }
     ]
   };
 }
@@ -46,7 +46,7 @@ describe("seedSecrets", () => {
 });
 
 describe("secrets in a stack", () => {
-  it("substitutes a secret into an openUrl template", async () => {
+  it("substitutes a secret into an openUrlInNewTab template", async () => {
     document.body.innerHTML = `<input id="tender_id" value="T-42" />`;
 
     await runStack(syncStack("http://dzo.lh/sync.php?id=$s1&run=$secret_runToken"), undefined, {
@@ -110,7 +110,7 @@ describe("present — the toast is where a secret would actually leak", () => {
       ok: false as const,
       notes: [],
       stepIndex: 1,
-      stepType: "openUrl",
+      stepType: "openUrlInNewTab",
       message: 'Invalid URL "http://dzo.lh/sync.php?run=ksdjfgnsaerhtoiaerhg"'
     };
 
@@ -130,7 +130,7 @@ describe("makeRedactor", () => {
     );
   });
 
-  it("masks the percent-encoded spelling too, since openUrl encodes values", () => {
+  it("masks the percent-encoded spelling too, since the URL steps encode values", () => {
     const secret = "a b&c";
     const redact = makeRedactor({ runToken: secret });
 

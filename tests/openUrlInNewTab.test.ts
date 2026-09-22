@@ -22,7 +22,7 @@ function stackWith(url: string, selector = "#tender_id"): Stack {
     enabled: true,
     steps: [
       { id: "s1", type: "readBySelector", selector },
-      { id: "s2", type: "openUrl", url }
+      { id: "s2", type: "openUrlInNewTab", url }
     ]
   };
 }
@@ -36,7 +36,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("openUrl", () => {
+describe("openUrlInNewTab", () => {
   it("opens a new tab with $vars substituted from earlier steps", async () => {
     document.body.innerHTML = `<input id="tender_id" value="e3cf4bdd" />`;
 

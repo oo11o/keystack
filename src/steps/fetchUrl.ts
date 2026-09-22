@@ -1,7 +1,6 @@
 import type { Handler } from "./types";
-import { resolve } from "../core/context";
 import { prettyJson } from "../core/json";
-import { toHttpUrl } from "../page/navigate";
+import { resolveHttpUrl } from "../page/navigate";
 import { fetchInBackground } from "../background/client";
 import { showSpinner } from "../ui/spinner";
 
@@ -15,7 +14,7 @@ export const fetchUrl: Handler = async (step, ctx) => {
   if (step.type !== "fetchUrl") throw new Error("wrong handler");
   if (inFlight) throw new Error("A fetchUrl request is already in progress — wait for it to finish");
 
-  const url = toHttpUrl(resolve(step.url, ctx, encodeURIComponent));
+  const url = resolveHttpUrl(step.url, ctx);
 
   // Origin + path only, no query string: a $secret_* substituted into the
   // URL is only masked later, at the presentation boundary (core/redact.ts)

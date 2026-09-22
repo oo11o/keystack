@@ -14,7 +14,8 @@ export type Step =
   | { id: string; type: "inputToSelector"; selector: string; value: string }
   | { id: string; type: "popup"; title?: string; body: string }
   | { id: string; type: "popupJson"; title?: string; body: string }
-  | { id: string; type: "openUrl"; url: string }
+  | { id: string; type: "openUrlInNewTab"; url: string }
+  | { id: string; type: "openUrlInCurrentTab"; url: string }
   | { id: string; type: "fetchUrl"; url: string; saveAs?: string };
 
 export type Stack = {

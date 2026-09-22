@@ -1,7 +1,7 @@
 import type { Settings, Stack } from "../core/schema";
 import { DEFAULT_SETTINGS } from "../core/schema";
 import { formatBinding } from "../core/keys";
-import { runStack, StepError } from "./runner";
+import { runStack, StepError, type Resume } from "./runner";
 import { logDebug } from "./debugLog";
 import { present } from "./presenter";
 import { loadSecrets } from "./secrets";
@@ -23,10 +23,11 @@ async function loadSettings(): Promise<Settings> {
 async function resolveOutcome(
   stack: Stack,
   allStacks: Stack[],
-  secrets: Record<string, string>
+  secrets: Record<string, string>,
+  resume?: Resume
 ): Promise<RunOutcome> {
   try {
-    const notes = await runStack(stack, allStacks, secrets);
+    const notes = await runStack(stack, allStacks, secrets, resume);
     return { ok: true, notes };
   } catch (err) {
     if (err instanceof StepError) {
@@ -45,11 +46,15 @@ async function resolveOutcome(
 // Runs an already-resolved stack end to end: debug logging, execution, and
 // presenting the outcome (toast) — unless a popup step already showed the
 // confirmation.
-export async function executeStack(stack: Stack, allStacks: Stack[]): Promise<void> {
+export async function executeStack(
+  stack: Stack,
+  allStacks: Stack[],
+  resume?: Resume
+): Promise<void> {
   const [settings, secrets] = await Promise.all([loadSettings(), loadSecrets()]);
   const chord = formatBinding(stack.binding);
   logDebug(chord, stack, settings.debug);
 
-  const outcome = await resolveOutcome(stack, allStacks, secrets);
+  const outcome = await resolveOutcome(stack, allStacks, secrets, resume);
   present(chord, stack, outcome, settings, makeRedactor(secrets));
 }

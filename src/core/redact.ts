@@ -7,7 +7,7 @@ export const MASK = "•••";
 // Instead the real value flows wherever the step needs it and gets masked
 // once, at the presentation boundary — see content/presenter.ts.
 //
-// openUrl percent-encodes interpolated values, so a token containing special
+// The URL steps percent-encode interpolated values, so a token containing special
 // characters appears in a URL in a spelling that no longer matches the raw
 // secret. Both forms are masked.
 export function makeRedactor(secrets: Record<string, string>): (text: string) => string {
