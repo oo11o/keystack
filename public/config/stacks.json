@@ -107,7 +107,14 @@
           "type": "inputToSelector",
           "selector": "[name=\"email\"]",
           "value": "buyer_test@dzo.com.ua"
-        }
+        },
+        {
+          "id": "s4",
+          "type": "inputToSelector",
+          "selector": "[name=\"password\"]",
+          "value": "$secret_buyerPassword"
+        },
+        { "id": "s5", "type": "clickBySelector", "selector": "[type=\"submit\"]" }
       ]
     },
     {
