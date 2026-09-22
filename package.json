@@ -1,6 +1,6 @@
 {
   "name": "hotkey_plugin",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Keystack — hotkey macros for any site.",
   "type": "module",
   "scripts": {
