@@ -114,6 +114,16 @@ function showToast(chord: string, detailLines: string[], ok: boolean) {
   });
 }
 
+// A config that will not parse is a special kind of failure: no stack ran,
+// so there is no chord, no stack name and no step list to report. It also
+// deliberately ignores the toast verbosity setting — verbosity tunes how
+// much detail a *run* reports, and here nothing can run at all. Silence is
+// the exact failure mode this exists to remove: before it, one stray comma
+// in stacks.json made every hotkey dead with no feedback anywhere.
+export function showConfigErrorToast(message: string): void {
+  showToast("Keystack", ["\u2717 config/stacks.json could not be read", "", message], false);
+}
+
 // "none": show nothing. "min": chord + stack name, plus the failure reason
 // if it failed — no per-step detail. "max": full numbered step list, with a
 // separator before the failing step on failure.
