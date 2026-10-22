@@ -1,7 +1,7 @@
 import type { Binding, Config, Site, Stack, Step } from "../core/schema";
 import { SCHEMA_VERSION } from "../core/schema";
 import { isParsed, parseConfig, saveConfig, seedIfEmpty } from "../core/configStore";
-import { matchesUrl, siteFor } from "../core/match";
+import { isCommon, siteFor, siteScope, sitesOverlap } from "../core/match";
 import { STEP_META, blankStep, templateFields } from "../core/stepMeta";
 import { referencedVars, unknownVars } from "../core/vars";
 
@@ -387,45 +387,94 @@ export type Problem = { message: string; stackId?: string; stepId?: string; riva
 // rival on another site is only identifiable with the site said out loud.
 export type Rival = { id: string; name: string; siteId: string | null; siteName: string };
 
-// Two enabled stacks that can both apply on one URL and share a chord: the
-// first one found wins and the other is dead. Not an error — it may be
-// deliberate, one of them disabled in a moment — so it is a warning, and only
-// between stacks that can actually collide (common vs a site, or one site with
-// itself; two different sites cannot).
-export function chordConflicts(): Problem[] {
-  const problems: Problem[] = [];
-  const enabled = config.stacks.filter((s) => s.enabled);
-  for (const stack of enabled) {
-    const rivals = enabled.filter(
-      (other) =>
-        other.id !== stack.id &&
-        sameChord(other.binding, stack.binding) &&
-        canCollide(stack, other)
-    );
-    if (rivals.length > 0) {
-      problems.push({
-        stackId: stack.id,
-        rivals: rivals.map((r) => ({
-          id: r.id,
-          name: r.name,
-          siteId: r.siteId ?? null,
-          siteName: siteName(r.siteId ?? null)
-        })),
-        message: `shares its chord with ${rivals.map((r) => `"${r.name}"`).join(", ")}`
-      });
-    }
-  }
-  return problems;
+// Two enabled stacks on one chord that can both apply on some URL. Which of
+// them fires is not a toss-up: the resolver takes the narrowest scope that
+// claims the page — this URL, then this domain, then everywhere — so a shared
+// chord is only a problem when the two sit at the *same* level. Then the first
+// one in the config wins and the other is simply dead.
+//
+// Across levels it is the point rather than a problem: one chord that does the
+// usual thing everywhere and something sharper on /contracts. The builder says
+// which way round it will go and leaves it alone.
+export type ChordRelations = {
+  stackId: string;
+  conflicts: Rival[]; // same level — one of these never fires
+  overrides: Rival[]; // this stack wins where both apply
+  overriddenBy: Rival[]; // the other one wins where both apply
+};
+
+// How narrowly a stack aims, which is how the resolver ranks it. null means it
+// points at a site that no longer exists, so it applies nowhere and can neither
+// clash with nor override anything.
+function level(stack: Stack): 0 | 1 | 2 | null {
+  if (isCommon(stack)) return 0;
+  const site = config.sites.find((s) => s.id === stack.siteId);
+  if (!site) return null;
+  return siteScope(site) === "domain" ? 1 : 2;
 }
 
+// Is there a page where both apply? A common stack meets everything; two site
+// stacks meet only where their patterns do.
 function canCollide(a: Stack, b: Stack): boolean {
-  if (a.siteId == null || b.siteId == null) return true; // a common stack can meet anything
-  if (a.siteId === b.siteId) return true;
-  // Two sites collide only where their patterns overlap. Testing every URL is
-  // not possible, so the honest approximation is: do they share a pattern.
-  const aPatterns = config.sites.find((s) => s.id === a.siteId)?.patterns ?? [];
-  const bSite = config.sites.find((s) => s.id === b.siteId);
-  return bSite ? aPatterns.some((p) => matchesUrl(p, bSite.patterns)) : false;
+  const [levelA, levelB] = [level(a), level(b)];
+  if (levelA === null || levelB === null) return false;
+  if (levelA === 0 || levelB === 0) return true;
+  const siteA = config.sites.find((s) => s.id === a.siteId);
+  const siteB = config.sites.find((s) => s.id === b.siteId);
+  return siteA !== undefined && siteB !== undefined && sitesOverlap(siteA, siteB);
+}
+
+export function chordRelations(): ChordRelations[] {
+  const found: ChordRelations[] = [];
+  const enabled = config.stacks.filter((s) => s.enabled);
+  for (const stack of enabled) {
+    const mine = level(stack);
+    if (mine === null) continue;
+    const relations: ChordRelations = {
+      stackId: stack.id,
+      conflicts: [],
+      overrides: [],
+      overriddenBy: []
+    };
+    for (const other of enabled) {
+      if (other.id === stack.id) continue;
+      if (!sameChord(other.binding, stack.binding)) continue;
+      if (!canCollide(stack, other)) continue;
+      const theirs = level(other) as 0 | 1 | 2;
+      const bucket =
+        theirs === mine
+          ? relations.conflicts
+          : theirs < mine
+            ? relations.overrides
+            : relations.overriddenBy;
+      bucket.push(rivalOf(other));
+    }
+    const total =
+      relations.conflicts.length + relations.overrides.length + relations.overriddenBy.length;
+    if (total > 0) found.push(relations);
+  }
+  return found;
+}
+
+function rivalOf(stack: Stack): Rival {
+  return {
+    id: stack.id,
+    name: stack.name,
+    siteId: stack.siteId ?? null,
+    siteName: siteName(stack.siteId ?? null)
+  };
+}
+
+// The subset worth warning about, in the shape the save status and the stack
+// cards already speak.
+export function chordConflicts(): Problem[] {
+  return chordRelations()
+    .filter((r) => r.conflicts.length > 0)
+    .map((r) => ({
+      stackId: r.stackId,
+      rivals: r.conflicts,
+      message: `shares its chord with ${r.conflicts.map((c) => `"${c.name}"`).join(", ")}`
+    }));
 }
 
 function sameChord(a: Binding, b: Binding): boolean {
@@ -476,6 +525,20 @@ export async function save(): Promise<SaveResult> {
         stackId: stack.id,
         stepId: unknown.stepId,
         message: `"${stack.name}", action ${unknown.stepId}: $${unknown.name} is not a value this stack has — check the ${unknown.field} field`
+      });
+    }
+  }
+  // A popup is where a stack ends. The builder will not let one be put
+  // anywhere else, but an imported or hand-written config can still arrive
+  // with actions queued behind a panel nobody will see until it is dismissed.
+  for (const stack of config.stacks) {
+    const last = stack.steps.length - 1;
+    for (const [index, step] of stack.steps.entries()) {
+      if (index === last || !STEP_META[step.type].endsStack) continue;
+      problems.push({
+        stackId: stack.id,
+        stepId: step.id,
+        message: `"${stack.name}", action ${step.id}: ${STEP_META[step.type].label} has to be the last action — nothing may follow it`
       });
     }
   }

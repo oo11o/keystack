@@ -54,7 +54,10 @@ export function renderSteps(pane: HTMLElement): void {
     pipeline.append(actionRow(step, index, stack.steps.length, current?.id === step.id));
   });
 
-  pipeline.append(addRow());
+  // A popup is the answer the hotkey was pressed for: it is the last action a
+  // stack has, so the pipeline ends there rather than asking "and then?".
+  const last: Step | undefined = stack.steps[stack.steps.length - 1];
+  pipeline.append(last && STEP_META[last.type].endsStack ? endNote(last) : addRow());
   pane.append(pipeline);
 }
 
@@ -115,6 +118,12 @@ function actionRow(step: Step, index: number, total: number, open: boolean): HTM
 function actionCard(step: Step, index: number, total: number, open: boolean): HTMLElement {
   const stack = store.currentStack()!;
   const meta = STEP_META[step.type];
+  // Neither arrow may leave an action standing after a popup: the popup is
+  // where the stack ends, so it cannot move off the bottom, and the action
+  // above it cannot move past it.
+  const ends = meta.endsStack === true;
+  const next = stack.steps[index + 1];
+  const endsAfter = next !== undefined && STEP_META[next.type].endsStack === true;
   const card = h("div", { class: `card step ${open ? "is-open" : ""}`.trim() });
 
   const text = h(
@@ -148,8 +157,10 @@ function actionCard(step: Step, index: number, total: number, open: boolean): HT
       h(
         "div",
         { class: "steptools" },
-        iconButton("up", "Move up", () => move(step.id, -1), { disabled: index === 0 }),
-        iconButton("down", "Move down", () => move(step.id, 1), { disabled: index === total - 1 }),
+        iconButton("up", "Move up", () => move(step.id, -1), { disabled: index === 0 || ends }),
+        iconButton("down", "Move down", () => move(step.id, 1), {
+          disabled: index === total - 1 || endsAfter
+        }),
         iconButton("copy", "Duplicate action", () => store.duplicateStep(step.id)),
         iconButton("trash", "Delete action", () => store.deleteStep(step.id))
       )
@@ -312,6 +323,19 @@ function varNameField(step: Step): HTMLElement {
 }
 
 /* ── adding an action ──────────────────────────────────────────────────── */
+
+function endNote(last: Step): HTMLElement {
+  return h(
+    "div",
+    { class: "prow" },
+    rail(h("span", { class: "seg", style: "height:6px" }), h("span", { class: "node node-end" }, icon("check"))),
+    h(
+      "div",
+      { class: "prow-body" },
+      h("div", { class: "endnote", text: `${STEP_META[last.type].label} ends the stack.` })
+    )
+  );
+}
 
 function addRow(): HTMLElement {
   const wrap = h("div", { class: "prow-body" });

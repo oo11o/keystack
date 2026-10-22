@@ -1,6 +1,7 @@
 import { columnHead, h, iconButton, row } from "./el";
 import { icon } from "./icons";
-import { sitesFor } from "../core/match";
+import { groupSites, siteHost, siteScope, sitesFor } from "../core/match";
+import type { Site } from "../core/schema";
 import * as store from "./store";
 import { COMMON } from "./store";
 
@@ -8,12 +9,29 @@ import { COMMON } from "./store";
 // ("Common"), or one of the sites below. The row for the page the builder was
 // opened from says so, and that page is what a new site is pre-filled with,
 // because "make this work here" is how a stack usually starts.
+//
+// A host and its sections are one group, not three unrelated rows:
+// stage.dzo.com.ua owns the list, and stage.dzo.com.ua/tenders sits under it as
+// an area. The nesting is read out of the patterns (see groupSites) — nothing
+// in the config declares it, so it cannot disagree with where stacks fire.
 
 function hostOf(url: string): string {
   try {
     return new URL(url).host;
   } catch {
     return url;
+  }
+}
+
+// The section of a site the URL is in: its first path segment, or "" at the
+// root. One segment rather than the whole path, because "/tenders" is the area
+// a user means when they are looking at "/tenders/4821/edit".
+function areaOf(url: string): string {
+  try {
+    const segment = new URL(url).pathname.split("/").filter(Boolean)[0];
+    return segment ? `/${segment}` : "";
+  } catch {
+    return "";
   }
 }
 
@@ -29,7 +47,8 @@ export function renderSites(pane: HTMLElement): void {
 
   // Every site that claims the page the builder was opened from, not just one:
   // a domain-wide site and a page-specific one can both apply.
-  const here = new Set((pageUrl ? sitesFor(pageUrl, config.sites) : []).map((m) => m.site.id));
+  const matched = pageUrl ? sitesFor(pageUrl, config.sites) : [];
+  const here = new Set(matched.map((m) => m.site.id));
 
   pane.append(
     columnHead({
@@ -63,53 +82,88 @@ export function renderSites(pane: HTMLElement): void {
     )
   );
 
-  if (config.sites.length > 0) pane.append(h("div", { class: "sectionlabel", text: "Your sites" }));
+  const groups = groupSites(config.sites);
+  if (groups.length > 0) pane.append(h("div", { class: "sectionlabel", text: "Your sites" }));
 
-  for (const site of config.sites) {
-    const scopeOf = { kind: "site" as const, siteId: site.id };
-    const selected = store.sameScope(scope, scopeOf);
+  for (const group of groups) {
+    pane.append(siteRow(group.site, here, false));
+    if (group.areas.length === 0) continue;
     pane.append(
-      row(
-        {
-          class: selected ? "is-sel" : "",
-          "aria-pressed": selected ? "true" : "false",
-          title: site.patterns.join("\n"),
-          onClick: () => store.selectScope(scopeOf)
-        },
-        h("span", { class: "avatar", text: (site.name[0] ?? "?").toUpperCase() }),
-        h(
-          "span",
-          { class: "rowbody" },
-          h("span", { class: "rowtitle", text: site.name }),
-          h("span", {
-            class: "rowsub",
-            // "this page" is the one thing a site row can say that the config
-            // cannot: whether it claims the tab the user came from.
-            text:
-              plural(store.stackCount(scopeOf), "stack") + (here.has(site.id) ? " · this page" : "")
-          })
-        )
-      )
+      h("div", { class: "arealist" }, ...group.areas.map((area) => siteRow(area, here, true)))
     );
   }
 
-  // Pre-filled with the host when the page the builder was opened from belongs
-  // to no site yet — that is the site the user is about to type by hand.
-  const unclaimed = pageUrl && here.size === 0 ? hostOf(pageUrl) : null;
   pane.append(
+    addButton(pageUrl, {
+      domain: matched.some((m) => m.level === "domain"),
+      url: matched.some((m) => m.level === "url")
+    })
+  );
+  pane.append(scope.kind === "site" ? siteSettings(scope.siteId) : commonCard());
+}
+
+function siteRow(site: Site, here: Set<string>, isArea: boolean): HTMLElement {
+  const scopeOf = { kind: "site" as const, siteId: site.id };
+  const selected = store.sameScope(store.getScope(), scopeOf);
+  return row(
+    {
+      class: `${isArea ? "is-area" : ""} ${selected ? "is-sel" : ""}`.trim(),
+      "aria-pressed": selected ? "true" : "false",
+      title: site.patterns.join("\n"),
+      onClick: () => store.selectScope(scopeOf)
+    },
+    // An area belongs to the host above it, so it gets a tick rather than a
+    // second initial competing with its parent's.
+    isArea
+      ? h("span", { class: "areamark", "aria-hidden": "true", text: "└" })
+      : h("span", { class: "avatar", text: (site.name[0] ?? "?").toUpperCase() }),
     h(
-      "button",
-      {
-        type: "button",
-        class: "btn btn-dashed",
-        onClick: () => store.addSite(unclaimed ?? "New site", unclaimed ? [unclaimed] : [])
-      },
-      icon("plus"),
-      unclaimed ? `Add ${unclaimed}` : "Add site"
+      "span",
+      { class: "rowbody" },
+      h("span", { class: "rowtitle", text: site.name }),
+      h("span", {
+        class: "rowsub",
+        // "this page" is the one thing a site row can say that the config
+        // cannot: whether it claims the tab the user came from.
+        text: plural(store.stackCount(scopeOf), "stack") + (here.has(site.id) ? " · this page" : "")
+      })
     )
   );
+}
 
-  pane.append(scope.kind === "site" ? siteSettings(scope.siteId) : commonCard());
+// One button, three jobs, decided by what the page the builder was opened from
+// already belongs to: a host with no site yet wants a site, a host that has one
+// wants this section of it, and a page that is already covered down to the URL
+// wants nothing in particular.
+function addButton(pageUrl: string | null, claimed: { domain: boolean; url: boolean }): HTMLElement {
+  const sites = store.getConfig().sites;
+  const host = pageUrl ? hostOf(pageUrl) : "";
+  // Named by this exact host, or claimed by a wildcard one ("*.dzo.com.ua"):
+  // either way the host has an owner and a second row for it would be a rival,
+  // not a parent.
+  const hasHost =
+    claimed.domain || (host !== "" && sites.some((s) => siteHost(s) === host.toLowerCase()));
+  const area = pageUrl ? areaOf(pageUrl) : "";
+
+  let label = "Add site";
+  let add = () => void store.addSite("New site", []);
+
+  if (host !== "" && !hasHost) {
+    label = `Add ${host}`;
+    add = () => void store.addSite(host, [host]);
+  } else if (host !== "" && area !== "" && !claimed.url) {
+    label = `Add ${host}${area}`;
+    // One pattern, no wildcard: a path on its own already means this page and
+    // everything under it (see patternToRegExp).
+    add = () => void store.addSite(area, [`${host}${area}`]);
+  }
+
+  return h(
+    "button",
+    { type: "button", class: "btn btn-dashed", onClick: () => add() },
+    icon("plus"),
+    label
+  );
 }
 
 function commonCard(): HTMLElement {
@@ -122,7 +176,8 @@ function commonCard(): HTMLElement {
 }
 
 function siteSettings(siteId: string): HTMLElement {
-  const site = store.getConfig().sites.find((s) => s.id === siteId);
+  const config = store.getConfig();
+  const site = config.sites.find((s) => s.id === siteId);
   if (!site) return h("div");
 
   // Stable ids: an edit here redraws the column, and main.ts puts the caret
@@ -145,11 +200,12 @@ function siteSettings(siteId: string): HTMLElement {
 
   // Added on Enter rather than per keystroke: a pattern is only a pattern once
   // it is finished, and half of one would match nothing while it was typed.
+  const host = siteHost(site);
   const add = h("input", {
     id: "site-add-pattern",
     class: "input mono",
     type: "text",
-    placeholder: "Add a pattern, e.g. *.dzo.com.ua",
+    placeholder: host ? `Add a pattern, e.g. ${host}/contracts` : "Add a pattern, e.g. *.dzo.com.ua",
     "aria-label": "Add URL pattern"
   });
   add.addEventListener("keydown", (e) => {
@@ -160,12 +216,26 @@ function siteSettings(siteId: string): HTMLElement {
     store.patchSite(site.id, { patterns: [...site.patterns, pattern] });
   });
 
+  const group = groupSites(config.sites).find(
+    (g) => g.site.id === site.id || g.areas.some((a) => a.id === site.id)
+  );
+  const parent = group && group.site.id !== site.id ? group.site : null;
+  const areas = group && group.site.id === site.id ? group.areas : [];
   const count = store.stackCount({ kind: "site", siteId: site.id });
 
   return h(
     "div",
     { class: "card settings" },
-    h("div", { class: "settings-head", text: "Site settings" }),
+    h("div", { class: "settings-head", text: parent ? "Area settings" : "Site settings" }),
+    // Where this row sits in the list, and why: both facts are consequences of
+    // the patterns, so saying them here is the only place the user can learn
+    // the rule without guessing.
+    parent
+      ? h("div", {
+          class: "hint",
+          text: `An area of ${parent.name} — its stacks win here, over the ones on ${parent.name} itself.`
+        })
+      : null,
     h("label", { class: "field" }, h("span", { class: "label", text: "Name" }), name),
     h(
       "div",
@@ -175,8 +245,17 @@ function siteSettings(siteId: string): HTMLElement {
       add,
       h("span", {
         class: "hint",
-        text: "* matches anything. A bare host (example.com) matches any scheme and path."
+        text:
+          "A bare host (example.com) matches any scheme and path. A path " +
+          "(example.com/tenders) matches that page and everything under it. " +
+          "Add * to match anything, anywhere."
       }),
+      siteScope(site) === "domain" && host !== ""
+        ? h("span", {
+            class: "hint",
+            text: `A pattern with a path (${host}/contracts) makes a separate area under this site, with its own stacks.`
+          })
+        : null,
       // A site with no patterns matches nothing, so every stack on it is dead.
       // Said here rather than only at save time, where it would arrive long
       // after the mistake.
@@ -191,8 +270,8 @@ function siteSettings(siteId: string): HTMLElement {
         type: "button",
         class: "btn btn-danger btn-sm",
         style: "margin-left:-10px",
-        text: "Delete site…",
-        onClick: () => confirmDelete(site.id, site.name, count)
+        text: parent ? "Delete area…" : "Delete site…",
+        onClick: () => confirmDelete(site.id, site.name, count, areas)
       })
     )
   );
@@ -201,13 +280,22 @@ function siteSettings(siteId: string): HTMLElement {
 // The stacks are the question, not the site: deleting them and promoting them
 // to "runs everywhere" each lose something the other keeps, so both are asked
 // for explicitly and neither is the default.
-function confirmDelete(siteId: string, name: string, stacks: number): void {
+//
+// The areas are not part of the question. They are sites in their own right
+// with their own stacks, so deleting the host leaves them standing — said out
+// loud, because the indentation suggests otherwise.
+function confirmDelete(siteId: string, name: string, stacks: number, areas: Site[]): void {
+  const orphans =
+    areas.length > 0
+      ? `\n\nIts ${plural(areas.length, "area")} (${areas.map((a) => a.name).join(", ")}) ` +
+        `keep working and move up to the top of the list.`
+      : "";
   if (stacks === 0) {
-    if (confirm(`Delete the site "${name}"?`)) store.deleteSite(siteId, false);
+    if (confirm(`Delete the site "${name}"?${orphans}`)) store.deleteSite(siteId, false);
     return;
   }
   const keep = confirm(
-    `"${name}" has ${stacks} stack${stacks === 1 ? "" : "s"}.\n\n` +
+    `"${name}" has ${stacks} stack${stacks === 1 ? "" : "s"}.${orphans}\n\n` +
       `OK — keep them as common stacks, running everywhere.\n` +
       `Cancel — choose to delete them instead.`
   );

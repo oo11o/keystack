@@ -102,8 +102,8 @@ describe("site scoping", () => {
     const route = (await resolveStack(keydown("Digit8"))) as Route;
 
     expect(route.sections.flatMap((s) => s.stacks.map((st) => st.id))).toEqual([
-      "sync-common",
-      "local-only"
+      "local-only",
+      "sync-common"
     ]);
     // The popup lists what works here, not every chord ever configured.
     expect(formatStackList(route.sections)).not.toMatch(/Sync \(test\)/);
@@ -133,15 +133,17 @@ describe("the cheatsheet's three tiers", () => {
 
     const route = (await resolveStack(keydown("Digit8"))) as Route;
 
+    // The cheatsheet reads in precedence order, so the stack this chord will
+    // actually run here is the first one on the list.
     expect(route.sections.map((s) => [s.level, s.label])).toEqual([
-      ["common", "Everywhere"],
+      ["url", "This URL · new tender form"],
       ["domain", "This domain · dzo.lh"],
-      ["url", "This URL · new tender form"]
+      ["common", "Everywhere"]
     ]);
 
     const text = formatStackList(route.sections);
-    expect(text.indexOf("Everywhere")).toBeLessThan(text.indexOf("This domain"));
-    expect(text.indexOf("This domain")).toBeLessThan(text.indexOf("This URL"));
+    expect(text.indexOf("This URL")).toBeLessThan(text.indexOf("This domain"));
+    expect(text.indexOf("This domain")).toBeLessThan(text.indexOf("Everywhere"));
     expect(text).toContain("New tender form only");
   });
 

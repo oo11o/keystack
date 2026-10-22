@@ -66,18 +66,18 @@ describe("formatStackList — the cheatsheet's three tiers", () => {
   });
 
   const sections: StackSection[] = [
-    { level: "common", label: "Everywhere", stacks: [stack("Copy Tender", "Digit1")] },
+    { level: "url", label: "This URL · new tender", stacks: [stack("logoutLogin", "Digit8")] },
     { level: "domain", label: "This domain · dzo.lh", stacks: [stack("Sync", "Digit3")] },
-    { level: "url", label: "This URL · new tender", stacks: [stack("logoutLogin", "Digit8")] }
+    { level: "common", label: "Everywhere", stacks: [stack("Copy Tender", "Digit1")] }
   ];
 
-  it("heads each tier and keeps them in widest-first order", () => {
+  it("heads each tier and keeps them in the order they were given — narrowest first", () => {
     const lines = formatStackList(sections).split("\n");
 
     expect(lines.filter((l) => !l.startsWith(" ") && l !== "")).toEqual([
-      "Everywhere",
+      "This URL · new tender",
       "This domain · dzo.lh",
-      "This URL · new tender"
+      "Everywhere"
     ]);
   });
 
@@ -92,27 +92,27 @@ describe("formatStackList — the cheatsheet's three tiers", () => {
     // A long chord in one section still pushes the other sections' names over,
     // so the whole popup reads as one column.
     const wide = [
-      ...sections.slice(0, 1),
       {
         level: "url" as const,
         label: "This URL · x",
         stacks: [stack("Long", "ArrowDown")]
-      }
+      },
+      ...sections.slice(-1)
     ];
     const lines = formatStackList(wide).split("\n").filter((l) => l.startsWith("  "));
 
-    expect(lines[0].indexOf("Copy Tender")).toBe(lines[1].indexOf("Long"));
+    expect(lines[0].indexOf("Long")).toBe(lines[1].indexOf("Copy Tender"));
   });
 
   it("leaves out a tier with nothing enabled in it", () => {
     const withEmpty: StackSection[] = [
-      sections[0],
-      { level: "domain", label: "This domain · dzo.lh", stacks: [stack("Off", "Digit9", false)] }
+      { level: "domain", label: "This domain · dzo.lh", stacks: [stack("Off", "Digit9", false)] },
+      sections.at(-1)!
     ];
 
     // One section survives, so it is shown bare — no heading to tell it apart
     // from anything.
-    expect(formatStackList(withEmpty)).toBe(formatStackList([sections[0]]));
+    expect(formatStackList(withEmpty)).toBe(formatStackList([sections.at(-1)!]));
     expect(formatStackList(withEmpty)).not.toContain("Everywhere");
   });
 

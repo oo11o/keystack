@@ -289,6 +289,26 @@ svg.i {
 }
 .avatar-globe { background: #283553; color: var(--accent); }
 
+/* Areas: a host's path-scoped sites, nested under it. Indented and hung off a
+   left rule, so the group reads as one site with sections rather than three. */
+.arealist {
+  display: flex;
+  flex-direction: column;
+  margin: 0 0 0 17px;
+  padding-left: 14px;
+  border-left: 1px solid var(--line2);
+}
+.row.is-area { min-height: 44px; gap: 8px; }
+.row.is-area .rowtitle { font-size: 14px; }
+.areamark {
+  width: 14px;
+  flex: none;
+  color: var(--faint);
+  font-size: 13px;
+  line-height: 1;
+  margin-top: -2px;
+}
+
 /* ── cards, switches, keys ─────────────────────────────────────────────── */
 
 .card { border: 1px solid var(--line); border-radius: 12px; background: var(--raised); }
@@ -604,6 +624,16 @@ textarea.wrapbox {
 
 /* The "Add action" type menu: grouped, each type with a line of help, so the
    list is browsable by someone who does not know the vocabulary yet. */
+/* Where the Add action row would be, when the stack already ends. */
+.endnote {
+  border: 1px dashed var(--line2);
+  border-radius: 12px;
+  padding: 12px 16px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.node-end { background: var(--okbg); color: var(--okfg); border-color: var(--okline); }
+
 .type-menu {
   margin-top: 8px;
   border: 1px solid var(--line2);
@@ -696,3 +726,21 @@ dialog h2 { margin: 0 0 8px; font-size: 18px; }
 dialog p { margin-top: 0; color: var(--muted); font-size: 13.5px; }
 dialog textarea { min-height: 300px; }
 dialog .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+
+/* The same chord one level apart — precedence, not a clash, so it reads as a
+   statement rather than a warning. */
+.precedence {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 12px 10px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--hover);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+.precedence strong { color: var(--text); font-weight: 600; }
+.precedence svg { flex: none; color: var(--faint); }

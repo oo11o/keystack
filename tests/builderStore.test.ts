@@ -197,6 +197,23 @@ describe("editing steps", () => {
     expect("saveAs" in (store.currentStep() as object)).toBe(false);
   });
 
+  it("refuses to save an action queued behind a popup", async () => {
+    await open();
+    store.selectStack("copy-id");
+    // The builder offers no way to do this — the Add action row is gone once a
+    // stack ends in a popup — but an imported config can still arrive like it.
+    store.addStep("popup");
+    store.patchStep(store.currentStep()!.id, { body: "done" });
+    store.addStep("wait");
+
+    const result = await store.save();
+
+    expect(result.ok).toBe(false);
+    expect((result as { problems: { message: string }[] }).problems[0].message).toContain(
+      "has to be the last action"
+    );
+  });
+
   it("moves a step, and refuses to move it off either end", async () => {
     await open();
     store.selectStack("copy-id");
@@ -245,18 +262,81 @@ describe("editing steps", () => {
 });
 
 describe("chord conflicts", () => {
-  it("warns when a common stack and a site stack share a chord", async () => {
+  // A common stack and a site stack on one chord is precedence, not a clash:
+  // the site's wins on its pages, the common one everywhere else. Reported as
+  // a relation so the builder can say which way round it goes, and left out of
+  // chordConflicts so nothing scolds the user for it.
+  it("treats a common stack and a site stack on one chord as an override", async () => {
     await open();
     store.patchStack("local-sync", {
       binding: { code: "Digit1", ctrl: true, alt: true, shift: false, meta: false }
     });
 
-    const problems = store.chordConflicts();
-
-    expect(problems.map((p) => p.stackId).sort()).toEqual(["copy-id", "local-sync"]);
+    expect(store.chordConflicts()).toEqual([]);
+    expect(store.chordRelations()).toEqual([
+      {
+        stackId: "copy-id",
+        conflicts: [],
+        overrides: [],
+        overriddenBy: [
+          { id: "local-sync", name: "Sync (local)", siteId: "local", siteName: "dzo.lh" }
+        ]
+      },
+      {
+        stackId: "local-sync",
+        conflicts: [],
+        overrides: [{ id: "copy-id", name: "Copy Tender", siteId: null, siteName: "Common" }],
+        overriddenBy: []
+      }
+    ]);
   });
 
-  it("does not warn about two different sites, which can never both apply", async () => {
+  it("ranks an area of a site above the site itself", async () => {
+    await open();
+    store.addSite("/tenders", ["dzo.lh/tenders"]);
+    store.patchStack("copy-id", { siteId: "tenders" });
+    store.patchStack("local-sync", {
+      binding: { code: "Digit1", ctrl: true, alt: true, shift: false, meta: false }
+    });
+
+    expect(store.chordConflicts()).toEqual([]);
+    const relations = store.chordRelations();
+    expect(relations.find((r) => r.stackId === "copy-id")?.overrides).toEqual([
+      { id: "local-sync", name: "Sync (local)", siteId: "local", siteName: "dzo.lh" }
+    ]);
+  });
+
+  it("warns when two stacks on one site share a chord — one of them is dead", async () => {
+    await open();
+    store.patchStack("copy-id", { siteId: "local" });
+    store.patchStack("local-sync", {
+      binding: { code: "Digit1", ctrl: true, alt: true, shift: false, meta: false }
+    });
+
+    expect(store.chordConflicts().map((p) => p.stackId).sort()).toEqual(["copy-id", "local-sync"]);
+  });
+
+  it("warns when two common stacks share a chord", async () => {
+    await open();
+    store.patchStack("local-sync", {
+      siteId: null,
+      binding: { code: "Digit1", ctrl: true, alt: true, shift: false, meta: false }
+    });
+
+    expect(store.chordConflicts()).toHaveLength(2);
+  });
+
+  it("says nothing about a stack whose site no longer exists — it applies nowhere", async () => {
+    await open();
+    store.patchStack("local-sync", {
+      siteId: "gone",
+      binding: { code: "Digit1", ctrl: true, alt: true, shift: false, meta: false }
+    });
+
+    expect(store.chordRelations()).toEqual([]);
+  });
+
+  it("does not warn about two sites whose patterns never meet", async () => {
     await open();
     store.patchStack("copy-id", { siteId: "test" });
     store.patchStack("local-sync", {

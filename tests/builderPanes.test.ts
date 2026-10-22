@@ -45,6 +45,12 @@ function draw(): void {
   renderSteps(panes.steps);
 }
 
+function hasAddAction(): boolean {
+  return [...panes.steps.querySelectorAll("button")].some((b) =>
+    b.textContent?.includes("Add action")
+  );
+}
+
 function texts(pane: HTMLElement, selector: string): string[] {
   return [...pane.querySelectorAll(selector)].map((el) => el.textContent?.trim() ?? "");
 }
@@ -126,8 +132,6 @@ describe("the Sites column", () => {
   });
 
   it("offers the current host as a new site only when no site claims it", async () => {
-    expect(panes.sites.textContent).not.toContain("Add dzo.lh");
-
     await store.init("https://example.com/", []);
     draw();
     expect(panes.sites.textContent).toContain("Add example.com");
@@ -138,6 +142,65 @@ describe("the Sites column", () => {
       name: "example.com",
       patterns: ["example.com"]
     });
+  });
+
+  // The host is already a site, so the thing left to add is this section of it.
+  it("offers this section of a host that is already a site", () => {
+    expect(panes.sites.textContent).toContain("Add dzo.lh/tenders");
+    clickWithText(panes.sites, "button", "Add dzo.lh/tenders");
+
+    // One pattern: a path with no wildcard already covers its subtree.
+    expect(store.getConfig().sites.at(-1)).toMatchObject({
+      name: "/tenders",
+      patterns: ["dzo.lh/tenders"]
+    });
+  });
+
+  it("nests an area under its host, and opens it on its own stacks", () => {
+    store.addSite("/tenders", ["dzo.lh/tenders"]);
+    store.addStack("Area stack");
+    draw();
+
+    expect(texts(panes.sites, ".row .rowtitle")).toEqual(["Common", "dzo.lh", "/tenders"]);
+    expect(texts(panes.sites, ".arealist .row .rowtitle")).toEqual(["/tenders"]);
+    // Both claim the page the builder was opened from, at their own level.
+    expect(texts(panes.sites, ".row .rowsub").slice(1)).toEqual([
+      "0 stacks · this page",
+      "1 stack · this page"
+    ]);
+    expect(texts(panes.stacks, ".stackname")).toEqual(["Area stack"]);
+  });
+
+  it("offers nothing in particular once an area already claims the page", () => {
+    store.addSite("/tenders", ["dzo.lh/tenders"]);
+    draw();
+
+    expect(panes.sites.textContent).toContain("Add site");
+    expect(panes.sites.textContent).not.toContain("Add dzo.lh");
+  });
+
+  it("warns that a host's areas outlive it when the host is deleted", () => {
+    store.addSite("/tenders", ["dzo.lh/tenders"]);
+    store.selectScope({ kind: "site", siteId: "local" });
+    draw();
+
+    const asked: string[] = [];
+    vi.stubGlobal("confirm", (message: string) => {
+      asked.push(message);
+      return false;
+    });
+    clickWithText(panes.sites, "button", "Delete site");
+
+    expect(asked[0]).toContain("1 area (/tenders)");
+    expect(store.getConfig().sites.map((s) => s.id)).toEqual(["local", "tenders"]);
+  });
+
+  it("names an area's settings card for what it is, and says what it beats", () => {
+    store.addSite("/tenders", ["dzo.lh/tenders"]);
+    draw();
+
+    expect(texts(panes.sites, ".settings-head")).toEqual(["Area settings"]);
+    expect(panes.sites.textContent).toContain("An area of dzo.lh");
   });
 });
 
@@ -196,18 +259,46 @@ describe("the Stacks column", () => {
     expect(texts(panes.stacks, ".stackname")).toEqual(["Show Tender", "New stack"]);
   });
 
-  it("names the rival, and its site, when two stacks share a hotkey", () => {
+  // One chord, two meanings, one level apart: the site stack wins on its pages
+  // and the common one everywhere else. Said out loud on both cards, and not as
+  // a warning — this is what sites are for.
+  it("says which of two stacks one level apart wins, without calling it a clash", () => {
     store.selectScope({ kind: "site", siteId: "local" });
     store.addStack("Local thing");
     store.patchStack(store.currentStack()!.id, { binding: SEED.stacks[0].binding });
     draw();
 
-    // A site stack and a common one can both be live on the same page, so the
-    // site has to be said out loud for the two to be told apart.
-    expect(panes.stacks.querySelector(".conflict")?.textContent).toContain(
-      "Same hotkey as Show Tender (Common)"
+    expect(panes.stacks.querySelector(".conflict")).toBeNull();
+    expect(panes.stacks.querySelector(".keys.is-conflict")).toBeNull();
+    // On the site card: the narrower stack is the one that runs here.
+    expect(panes.stacks.querySelector(".precedence")?.textContent).toContain(
+      "Runs here instead of Show Tender (Common)"
     );
+
+    // And from Common, the same pair read the other way round.
+    store.selectScope({ kind: "common" });
+    draw();
+    expect(panes.stacks.querySelector(".precedence")?.textContent).toContain(
+      "Local thing (dzo.lh) runs instead on the pages it covers"
+    );
+  });
+
+  it("still warns when the two stacks are on the same site", () => {
+    store.selectScope({ kind: "site", siteId: "local" });
+    store.addStack("One");
+    store.addStack("Two");
+    store.patchStack(store.currentStack()!.id, {
+      binding: { code: "Digit1", ctrl: true, alt: true, shift: false, meta: false }
+    });
+    store.patchStack("one", {
+      binding: { code: "Digit1", ctrl: true, alt: true, shift: false, meta: false }
+    });
+    draw();
+
+    expect(panes.stacks.querySelector(".conflict")?.textContent).toContain("Same hotkey as Two");
     expect(panes.stacks.querySelector(".keys.is-conflict")).not.toBeNull();
+    store.selectStack("one");
+    draw();
     expect(panes.stacks.textContent).toContain("Record a different hotkey");
   });
 
@@ -423,17 +514,41 @@ describe("the Actions column", () => {
 
     expect(tool(0, "Move up").disabled).toBe(true);
     expect(tool(2, "Move down").disabled).toBe(true);
+    // The popup is where the stack ends, so neither arrow may leave an action
+    // standing behind it: it cannot climb, and the action above cannot pass it.
+    expect(tool(2, "Move up").disabled).toBe(true);
+    expect(tool(1, "Move down").disabled).toBe(true);
 
-    tool(2, "Move up").click();
+    tool(1, "Move up").click();
     draw();
-    expect(texts(panes.steps, ".steptitle")[1]).toBe("Show popup (JSON)");
+    expect(texts(panes.steps, ".steptitle")).toEqual([
+      "Fetch URL",
+      "Read element",
+      "Show popup (JSON)"
+    ]);
 
     tool(1, "Delete action").click();
     draw();
-    expect(texts(panes.steps, ".steptitle")).toEqual(["Read element", "Fetch URL"]);
+    expect(texts(panes.steps, ".steptitle")).toEqual(["Fetch URL", "Show popup (JSON)"]);
+  });
+
+  it("ends the pipeline at a popup instead of asking what comes next", () => {
+    // The seeded stack finishes with Show popup (JSON) — the answer the hotkey
+    // was pressed for, so there is nothing sensible to add after it.
+    expect(hasAddAction()).toBe(false);
+    expect(panes.steps.textContent).toContain("Show popup (JSON) ends the stack");
+
+    // And the way back is the one the note names.
+    store.deleteStep("s3");
+    draw();
+    expect(hasAddAction()).toBe(true);
   });
 
   it("adds an action from the grouped type menu", () => {
+    // Adding happens at the end, and this stack ends in a popup.
+    store.deleteStep("s3");
+    draw();
+
     clickWithText(panes.steps, "button", "Add action");
     clickStepType(panes.steps, "Wait (fixed)");
     draw();

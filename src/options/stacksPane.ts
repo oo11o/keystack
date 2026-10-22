@@ -1,6 +1,7 @@
 import { columnHead, h, row } from "./el";
 import { icon } from "./icons";
 import { chordText } from "../core/keys";
+import type { Stack } from "../core/schema";
 import * as store from "./store";
 import { COMMON } from "./store";
 import { hotkeyField, keyCaps } from "./chordInput";
@@ -18,7 +19,7 @@ export function renderStacks(pane: HTMLElement): void {
   const scope = store.getScope();
   const stacks = store.stacksInScope();
   const current = store.currentStack();
-  const conflicts = store.chordConflicts();
+  const relations = store.chordRelations();
   pane.className = "c-stack";
 
   const scopeLabel =
@@ -49,7 +50,10 @@ export function renderStacks(pane: HTMLElement): void {
 
   for (const stack of stacks) {
     const selected = current?.id === stack.id;
-    const clash = conflicts.find((c) => c.stackId === stack.id);
+    const relation = relations.find((r) => r.stackId === stack.id);
+    // Only a same-level pair is a clash. One level apart is precedence doing
+    // its job, and the note below says which way round it goes.
+    const clash = relation && relation.conflicts.length > 0 ? relation : undefined;
     const card = h("div", {
       class: `card ${selected ? "is-sel" : ""} ${stack.enabled ? "" : "is-off"}`.trim()
     });
@@ -94,10 +98,19 @@ export function renderStacks(pane: HTMLElement): void {
           "div",
           { class: "conflict" },
           icon("warn", 16),
-          h("span", {}, "Same hotkey as ", h("strong", { text: rivalNames(stack.siteId ?? null, clash.rivals ?? []) }))
+          h(
+            "span",
+            {},
+            "Same hotkey as ",
+            h("strong", { text: rivalNames(stack.siteId ?? null, clash.conflicts) })
+          )
         )
       );
     }
+
+    // The same chord one level apart: worth saying, because the card cannot
+    // otherwise explain why pressing it here does something else.
+    for (const note of precedenceNotes(stack, relation)) card.append(note);
 
     if (selected) card.append(stackEditor(clash !== undefined));
     pane.append(card);
@@ -146,6 +159,49 @@ function rivalNames(siteId: string | null, rivals: store.Rival[]): string {
   return rivals
     .map((r) => (r.siteId === siteId ? r.name : `${r.name} (${r.siteName})`))
     .join(", ");
+}
+
+// Which stack wins where both apply, said from this card's point of view. A
+// narrower stack beats a wider one — this URL, then this domain, then
+// everywhere — so these read as "instead of", never as a problem.
+function precedenceNotes(
+  stack: Stack,
+  relation: store.ChordRelations | undefined
+): HTMLElement[] {
+  if (!relation) return [];
+  const mine = stack.siteId ?? null;
+  const notes: HTMLElement[] = [];
+  if (relation.overrides.length > 0) {
+    notes.push(
+      h(
+        "div",
+        { class: "precedence" },
+        icon("check", 16),
+        h(
+          "span",
+          {},
+          "Runs here instead of ",
+          h("strong", { text: rivalNames(mine, relation.overrides) })
+        )
+      )
+    );
+  }
+  if (relation.overriddenBy.length > 0) {
+    notes.push(
+      h(
+        "div",
+        { class: "precedence" },
+        icon("navigate", 16),
+        h(
+          "span",
+          {},
+          h("strong", { text: rivalNames(mine, relation.overriddenBy) }),
+          " runs instead on the pages it covers"
+        )
+      )
+    );
+  }
+  return notes;
 }
 
 function stackEditor(conflicted: boolean): HTMLElement {

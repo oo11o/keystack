@@ -89,6 +89,11 @@ export type StepMeta = {
   // step reads as $<name>. Type-derived rather than s1/s2 so a stack reads as
   // prose: $text, $response. Non-producers have none.
   varName?: string;
+  // True when a stack reads as finished once this step has run: a popup is
+  // the answer the hotkey was pressed for. The runner does not treat it
+  // specially — it dismisses the panel and carries on — this is the builder
+  // declining to offer "and then?" where there is nothing sensible to add.
+  endsStack?: boolean;
   // One line for the step list. Must tolerate a half-filled step — the
   // builder renders it while the user is still typing.
   summary(step: Step): string;
@@ -267,6 +272,7 @@ export const STEP_META: Record<Step["type"], StepMeta> = {
     help: "An in-page panel that blocks the stack until dismissed, so a popup mid-stack is a checkpoint. On success it replaces the toast.",
     produces: false,
     outNote: "No result — it shows the panel and waits for you to dismiss it.",
+    endsStack: true,
     summary: (s) => text(s, "title", text(s, "body")),
     fields: [
       titleField,
@@ -286,6 +292,7 @@ export const STEP_META: Record<Step["type"], StepMeta> = {
     help: "The same panel with a live, path-aware line filter — for bodies that run to hundreds of lines.",
     produces: false,
     outNote: "No result — it shows the panel and waits for you to dismiss it.",
+    endsStack: true,
     summary: (s) => text(s, "title", text(s, "body")),
     fields: [
       titleField,
